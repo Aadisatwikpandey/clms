@@ -38,7 +38,7 @@ services:
 
   # ─── Elasticsearch ─────────────────────────────────────────────────────────
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.3.4
     container_name: clms_elasticsearch
     restart: unless-stopped
     environment:

@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { RowListSkeleton } from "@/components/ui/loading-cards";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { CheckCircle, AlertTriangle, RotateCcw, Plus, X } from "lucide-react";
 
@@ -72,13 +74,21 @@ function IssuePanel() {
         </div>
       )}
 
-      <Button
-        onClick={() => issueMutation.mutate({ memberBarcode, copyBarcodes })}
-        disabled={!memberBarcode || copyBarcodes.length === 0 || issueMutation.isPending}
-        className="w-full"
-      >
-        {issueMutation.isPending ? "Issuing..." : `Issue ${copyBarcodes.length} Item(s)`}
-      </Button>
+      <ConfirmDialog
+        trigger={
+          <Button
+            disabled={!memberBarcode || copyBarcodes.length === 0 || issueMutation.isPending}
+            className="w-full"
+          >
+            {issueMutation.isPending ? "Issuing..." : `Issue ${copyBarcodes.length} Item(s)`}
+          </Button>
+        }
+        title={`Issue ${copyBarcodes.length} item(s) to ${memberBarcode}?`}
+        description="This immediately issues the scanned copies to this member. Double-check the barcodes above before confirming."
+        confirmLabel="Issue"
+        destructive={false}
+        onConfirm={() => issueMutation.mutate({ memberBarcode, copyBarcodes })}
+      />
 
       {result && (
         <div className="space-y-2">
@@ -145,13 +155,18 @@ function ReturnPanel() {
           ))}
         </div>
       )}
-      <Button
-        onClick={() => returnMutation.mutate({ copyBarcodes: barcodes })}
-        disabled={barcodes.length === 0 || returnMutation.isPending}
-        className="w-full"
-      >
-        {returnMutation.isPending ? "Processing..." : `Return ${barcodes.length} Item(s)`}
-      </Button>
+      <ConfirmDialog
+        trigger={
+          <Button disabled={barcodes.length === 0 || returnMutation.isPending} className="w-full">
+            {returnMutation.isPending ? "Processing..." : `Return ${barcodes.length} Item(s)`}
+          </Button>
+        }
+        title={`Return ${barcodes.length} item(s)?`}
+        description="This immediately marks the scanned copies as returned and calculates any overdue fines. Double-check the barcodes above before confirming."
+        confirmLabel="Return"
+        destructive={false}
+        onConfirm={() => returnMutation.mutate({ copyBarcodes: barcodes })}
+      />
       {result && (
         <div className="space-y-2">
           {result.returned.map((item: any, i: number) => (
@@ -168,6 +183,94 @@ function ReturnPanel() {
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>{err}</AlertDescription>
             </Alert>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RenewPanel() {
+  const [barcode, setBarcode] = useState("");
+  const [history, setHistory] = useState<any[]>([]);
+
+  const renewMutation = useMutation({
+    mutationFn: (copyBarcode: string) => axios.post("/api/circulation/renew", { copyBarcode }).then((r) => r.data),
+    onSuccess: (data) => {
+      setHistory((prev) => [{ ...data, barcode, at: new Date() }, ...prev]);
+      toast.success(`Renewed — new due date ${data.newDueDate}`);
+      setBarcode("");
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error ?? "Renew failed"),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1">
+        <label className="text-sm font-medium">Copy Barcode (press Enter to renew)</label>
+        <Input
+          placeholder="Scan copy barcode"
+          value={barcode}
+          onChange={(e) => setBarcode(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && barcode.trim() && !renewMutation.isPending) renewMutation.mutate(barcode.trim());
+          }}
+        />
+        <p className="text-xs text-slate-500">Renews the loan on this copy by the member's standard loan period, up to their max renewal limit.</p>
+      </div>
+      {history.length > 0 && (
+        <div className="space-y-2">
+          {history.map((h, i) => (
+            <Alert key={i} className="border-blue-200 bg-blue-50">
+              <RotateCcw className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-sm">
+                Renewed {h.barcode} · New due date: {h.newDueDate}
+              </AlertDescription>
+            </Alert>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReservationsPanel() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["reservations"],
+    queryFn: () => axios.get("/api/circulation/reservations").then((r) => r.data),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (reservationId: number) => axios.patch("/api/circulation/reservations", { reservationId, action: "cancel" }).then((r) => r.data),
+    onSuccess: () => toast.success("Reservation cancelled"),
+    onError: (err: any) => toast.error(err.response?.data?.error ?? "Cancel failed"),
+  });
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-slate-600">{data?.length ?? 0} active reservation(s)</p>
+      {isLoading ? <RowListSkeleton count={4} /> : (
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {(data ?? []).length === 0 && <p className="text-sm text-slate-400 text-center py-8">No active reservations</p>}
+          {(data ?? []).map((r: any) => (
+            <div key={r.id} className="flex items-center justify-between p-3 border rounded-lg">
+              <div>
+                <p className="font-medium text-sm">{r.title}</p>
+                <p className="text-xs text-slate-500">{r.memberName} ({r.membershipNo}) · Reserved {new Date(r.reservedAt).toLocaleDateString()}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant={r.availableCopies > 0 ? "default" : "secondary"}>
+                  {r.availableCopies > 0 ? "Ready to fulfil" : "Waiting"}
+                </Badge>
+                <ConfirmDialog
+                  trigger={<Button size="sm" variant="outline">Cancel</Button>}
+                  title="Cancel this reservation?"
+                  description={`This removes ${r.memberName}'s hold on "${r.title}". They will need to reserve it again if they still want it.`}
+                  confirmLabel="Cancel Reservation"
+                  onConfirm={() => cancelMutation.mutate(r.id)}
+                />
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -194,7 +297,7 @@ function OverduesPanel() {
           Send Email Reminders
         </Button>
       </div>
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : (
+      {isLoading ? <RowListSkeleton count={4} /> : (
         <div className="space-y-2 max-h-96 overflow-y-auto">
           {(data ?? []).map((row: any, i: number) => (
             <div key={i} className="flex items-center justify-between p-3 border rounded-lg bg-red-50 border-red-200">
@@ -223,12 +326,16 @@ export default function CirculationPage() {
           <TabsList className="mb-4">
             <TabsTrigger value="issue">Issue</TabsTrigger>
             <TabsTrigger value="return">Return</TabsTrigger>
+            <TabsTrigger value="renew">Renew</TabsTrigger>
+            <TabsTrigger value="reservations">Reservations</TabsTrigger>
             <TabsTrigger value="overdues">Overdues</TabsTrigger>
           </TabsList>
           <Card>
             <CardContent className="pt-6">
               <TabsContent value="issue"><IssuePanel /></TabsContent>
               <TabsContent value="return"><ReturnPanel /></TabsContent>
+              <TabsContent value="renew"><RenewPanel /></TabsContent>
+              <TabsContent value="reservations"><ReservationsPanel /></TabsContent>
               <TabsContent value="overdues"><OverduesPanel /></TabsContent>
             </CardContent>
           </Card>

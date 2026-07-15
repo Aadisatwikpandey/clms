@@ -38,8 +38,9 @@ export const authConfig: NextAuthConfig = {
       const isOnLogin = nextUrl.pathname === "/login";
       const isPublicOpac = nextUrl.pathname.startsWith("/opac");
       const isApi = nextUrl.pathname.startsWith("/api/auth");
+      const isPasswordReset = nextUrl.pathname === "/forgot-password" || nextUrl.pathname === "/reset-password";
 
-      if (isApi || isPublicOpac) return true;
+      if (isApi || isPublicOpac || isPasswordReset) return true;
       if (isOnLogin) return isLoggedIn ? Response.redirect(new URL("/dashboard", nextUrl)) : true;
       return isLoggedIn;
     },

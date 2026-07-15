@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { Header } from "@/components/layout/header";
@@ -7,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CardGridSkeleton } from "@/components/ui/loading-cards";
+import { Pagination } from "@/components/ui/pagination";
 import { Plus, Search, UserCheck, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { useForm, Controller } from "react-hook-form";
@@ -89,9 +92,14 @@ function AddMemberForm({ onSuccess }: { onSuccess: () => void }) {
           <Input {...register("finePerDay")} type="number" step="0.50" />
         </div>
       </div>
-      <Button type="submit" className="w-full" disabled={isSubmitting}>
-        {isSubmitting ? "Registering..." : "Register Member"}
-      </Button>
+      <div className="flex gap-2">
+        <DialogClose render={<Button type="button" variant="outline" className="flex-1" />}>
+          Cancel
+        </DialogClose>
+        <Button type="submit" className="flex-1" disabled={isSubmitting}>
+          {isSubmitting ? "Registering..." : "Register Member"}
+        </Button>
+      </div>
     </form>
   );
 }
@@ -136,12 +144,13 @@ export default function MembersPage() {
           </Dialog>
         </div>
 
-        {isLoading ? <p className="text-slate-500 text-sm">Loading...</p> : (
+        {isLoading ? <CardGridSkeleton count={6} /> : (
           <>
             <p className="text-xs text-slate-500">{data?.total ?? 0} members</p>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {(data?.members ?? []).map((m: any) => (
-                <Card key={m.id} className="hover:shadow-md transition-shadow">
+                <Link key={m.id} href={`/members/${m.id}`}>
+                <Card className="hover:shadow-md hover:ring-1 hover:ring-blue-300 transition-shadow cursor-pointer">
                   <CardContent className="pt-4 pb-4 space-y-2">
                     <div className="flex items-center gap-2">
                       <div className="bg-blue-100 text-blue-700 rounded-full h-9 w-9 flex items-center justify-center font-bold text-sm">
@@ -170,13 +179,10 @@ export default function MembersPage() {
                     </div>
                   </CardContent>
                 </Card>
+                </Link>
               ))}
             </div>
-            <div className="flex gap-2 items-center pt-2">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-              <span className="text-sm text-slate-500">Page {page}</span>
-              <Button variant="outline" size="sm" disabled={(data?.members?.length ?? 0) < 20} onClick={() => setPage(p => p + 1)}>Next</Button>
-            </div>
+            <Pagination page={page} onPageChange={setPage} hasNext={(data?.members?.length ?? 0) >= 20} total={data?.total} />
           </>
         )}
       </div>

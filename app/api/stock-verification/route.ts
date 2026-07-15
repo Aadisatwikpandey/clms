@@ -14,6 +14,10 @@ const withdrawSchema = z.object({
   copyIds: z.array(z.number().int()).min(1),
   reason: z.string().optional(),
 });
+const unscanSchema = z.object({
+  sessionId: z.number().int(),
+  copyId: z.number().int(),
+});
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -73,10 +77,39 @@ export async function POST(req: NextRequest) {
 
   if (action === "complete") {
     const { sessionId } = body;
+    const [sess] = await db.select().from(stockSessions).where(eq(stockSessions.id, sessionId));
+    const totalMissing = Math.max((sess?.totalExpected ?? 0) - (sess?.totalVerified ?? 0), 0);
     await db.update(stockSessions).set({
       completedAt: new Date(),
       status: "completed",
+      totalMissing,
     }).where(eq(stockSessions.id, sessionId));
+    return NextResponse.json({ success: true, totalMissing });
+  }
+
+  if (action === "cancel") {
+    const { sessionId } = body;
+    await db.update(stockSessions).set({
+      completedAt: new Date(),
+      status: "cancelled",
+    }).where(eq(stockSessions.id, sessionId));
+    return NextResponse.json({ success: true });
+  }
+
+  if (action === "unscan") {
+    const parsed = unscanSchema.safeParse(body);
+    if (!parsed.success) return NextResponse.json({ error: "sessionId and copyId required" }, { status: 400 });
+
+    const deleted = await db
+      .delete(stockVerifications)
+      .where(sql`session_id = ${parsed.data.sessionId} AND copy_id = ${parsed.data.copyId}`)
+      .returning();
+
+    if (deleted.length > 0) {
+      await db.update(stockSessions).set({
+        totalVerified: sql`greatest(total_verified - 1, 0)`,
+      }).where(eq(stockSessions.id, parsed.data.sessionId));
+    }
     return NextResponse.json({ success: true });
   }
 

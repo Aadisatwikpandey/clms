@@ -1,28 +1,69 @@
 "use client";
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { BookOpen, Search, BookMarked, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
+
+function MyReservationsPanel() {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["my-reservations"],
+    queryFn: () => axios.get("/api/circulation/reservations").then((r) => r.data),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (reservationId: number) => axios.patch("/api/circulation/reservations", { reservationId, action: "cancel" }).then((r) => r.data),
+    onSuccess: () => { toast.success("Reservation cancelled"); qc.invalidateQueries({ queryKey: ["my-reservations"] }); },
+    onError: (err: any) => toast.error(err.response?.data?.error ?? "Cancel failed"),
+  });
+
+  if (!data || data.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-sm">My Reservations ({data.length})</CardTitle></CardHeader>
+      <CardContent className="space-y-2">
+        {data.map((r: any) => (
+          <div key={r.id} className="flex items-center justify-between p-2 border rounded text-sm">
+            <div>
+              <p className="font-medium">{r.title}</p>
+              <p className="text-xs text-slate-500">Reserved {new Date(r.reservedAt).toLocaleDateString()}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant={r.availableCopies > 0 ? "default" : "secondary"} className="text-xs">
+                {r.availableCopies > 0 ? "Ready for pickup" : "Waiting"}
+              </Badge>
+              <Button size="sm" variant="ghost" onClick={() => cancelMutation.mutate(r.id)}>Cancel</Button>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function OPACPage() {
   const { data: session } = useSession();
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
-  const [type, setType] = useState("");
+  const [type, setType] = useState("all");
+  const [language, setLanguage] = useState("");
   const [available, setAvailable] = useState(false);
   const [from, setFrom] = useState(0);
+  const isMember = !!session && !!(session.user as any).memberId;
 
   const { data, isFetching } = useQuery({
-    queryKey: ["opac-search", search, type, available, from],
-    queryFn: () => axios.get(`/api/search?q=${search}&type=${type}&available=${available}&from=${from}&size=20`).then((r) => r.data),
+    queryKey: ["opac-search", search, type, language, available, from],
+    queryFn: () => axios.get(`/api/search?q=${search}&type=${type === "all" ? "" : type}&lang=${language}&available=${available}&from=${from}&size=20`).then((r) => r.data),
     enabled: !!search || from > 0,
     placeholderData: (prev) => prev,
   });
@@ -47,6 +88,8 @@ export default function OPACPage() {
     <div className="flex flex-col h-full overflow-auto">
       <Header title="OPAC – Online Public Access Catalogue" />
       <div className="p-6 space-y-4">
+        {isMember && <MyReservationsPanel />}
+
         <form onSubmit={handleSearch} className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -60,7 +103,7 @@ export default function OPACPage() {
           <Select value={type} onValueChange={(v) => { if (v !== null) setType(v); }}>
             <SelectTrigger className="w-36"><SelectValue placeholder="All types" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All types</SelectItem>
+              <SelectItem value="all">All types</SelectItem>
               {["book","journal","magazine","thesis","digital"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -78,7 +121,7 @@ export default function OPACPage() {
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Material Type</p>
                   {(aggs.materialType?.buckets ?? []).map((b: any) => (
-                    <button key={b.key} onClick={() => setType(b.key === type ? "" : b.key)} className="flex justify-between w-full text-xs py-0.5 hover:text-blue-600">
+                    <button key={b.key} onClick={() => setType(b.key === type ? "all" : b.key)} className="flex justify-between w-full text-xs py-0.5 hover:text-blue-600">
                       <span className={b.key === type ? "text-blue-600 font-medium" : ""}>{b.key}</span>
                       <span className="text-slate-400">{b.doc_count}</span>
                     </button>
@@ -87,8 +130,8 @@ export default function OPACPage() {
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Language</p>
                   {(aggs.language?.buckets ?? []).map((b: any) => (
-                    <button key={b.key} className="flex justify-between w-full text-xs py-0.5 hover:text-blue-600">
-                      <span>{b.key}</span>
+                    <button key={b.key} onClick={() => setLanguage(b.key === language ? "" : b.key)} className="flex justify-between w-full text-xs py-0.5 hover:text-blue-600">
+                      <span className={b.key === language ? "text-blue-600 font-medium" : ""}>{b.key}</span>
                       <span className="text-slate-400">{b.doc_count}</span>
                     </button>
                   ))}
@@ -128,13 +171,16 @@ export default function OPACPage() {
                         <Badge variant={item.availableCopies > 0 ? "default" : "destructive"}>
                           {item.availableCopies}/{item.totalCopies} available
                         </Badge>
-                        {session && (session.user as any).memberId && (
+                        {isMember && item.availableCopies === 0 && (
                           <div>
-                            {item.availableCopies === 0 ? (
-                              <Button size="sm" variant="outline" onClick={() => reserveMutation.mutate(item.id)}>
-                                <BookMarked className="h-3 w-3 mr-1" /> Reserve
-                              </Button>
-                            ) : null}
+                            <ConfirmDialog
+                              trigger={<Button size="sm" variant="outline"><BookMarked className="h-3 w-3 mr-1" /> Reserve</Button>}
+                              title="Reserve this title?"
+                              description={`"${item.title}" is currently unavailable. You'll be notified when a copy is ready — this hold lasts 7 days. You can cancel it anytime from "My Reservations" above.`}
+                              confirmLabel="Reserve"
+                              destructive={false}
+                              onConfirm={() => reserveMutation.mutate(item.id)}
+                            />
                           </div>
                         )}
                       </div>

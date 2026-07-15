@@ -61,6 +61,13 @@ export async function POST(req: NextRequest) {
   const parsed = memberSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues.map((i) => i.message).join(", ") }, { status: 400 });
 
+  if (parsed.data.rollNo) {
+    const [existing] = await db.select({ id: members.id, name: members.name }).from(members).where(eq(members.rollNo, parsed.data.rollNo));
+    if (existing) {
+      return NextResponse.json({ error: `USN ${parsed.data.rollNo} is already registered to ${existing.name}` }, { status: 409 });
+    }
+  }
+
   const [{ maxSeq }] = await db.select({ maxSeq: sql<number>`coalesce(max(id), 0)` }).from(members);
   const seq = Number(maxSeq) + 1;
   const year = new Date().getFullYear();

@@ -18,7 +18,10 @@
     "db:import-accession": "tsx scripts/import-accession.ts",
     "db:import-members": "tsx scripts/import-members.ts",
     "test:generate-data": "tsx scripts/generate-test-data.ts",
-    "test:load-import": "tsx scripts/load-test-import.ts"
+    "test:load-import": "tsx scripts/load-test-import.ts",
+    "search:reindex": "tsx scripts/reindex-search.ts",
+    "generate-historical-data": "tsx scripts/generate-historical-data.ts",
+    "import-historical-data": "tsx scripts/import-historical-data.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",

@@ -2,7 +2,7 @@ import {
   pgTable, serial, text, varchar, integer, boolean, timestamp,
   decimal, date, pgEnum, index, uniqueIndex, jsonb,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 export const userRoleEnum = pgEnum("user_role", [
@@ -44,7 +44,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "new_arrival", "fine_receipt", "announcement",
 ]);
 export const stockSessionStatusEnum = pgEnum("stock_session_status", [
-  "in_progress", "completed",
+  "in_progress", "completed", "cancelled",
 ]);
 
 // ─── System Config ────────────────────────────────────────────────────────────
@@ -65,6 +65,8 @@ export const users = pgTable("users", {
   memberId: integer("member_id"),
   isActive: boolean("is_active").notNull().default(true),
   lastLogin: timestamp("last_login"),
+  passwordResetToken: varchar("password_reset_token", { length: 255 }),
+  passwordResetExpires: timestamp("password_reset_expires"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -100,6 +102,10 @@ export const members = pgTable("members", {
   index("members_barcode_idx").on(t.barcode),
   index("members_email_idx").on(t.email),
   index("members_dept_idx").on(t.department),
+  // The USN identifies exactly one student — enforced at the DB level so no code
+  // path (manual add, CSV import, migration) can create a duplicate. Partial so
+  // non-student members without a roll_no (faculty/staff/external) can share NULL.
+  uniqueIndex("members_roll_no_unique").on(t.rollNo).where(sql`${t.rollNo} IS NOT NULL`),
 ]);
 
 // ─── Catalogue Items (bibliographic records) ──────────────────────────────────

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchCatalogue } from "@/lib/search/elasticsearch";
+import { searchCatalogue, ensureIndices } from "@/lib/search/elasticsearch";
 import { getCached } from "@/lib/redis";
 
 export async function GET(req: NextRequest) {
+  await ensureIndices();
+
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") ?? "";
   const type = searchParams.get("type") ?? undefined;

@@ -8,12 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { RowListSkeleton } from "@/components/ui/loading-cards";
 import { toast } from "sonner";
 import { useForm, Controller } from "react-hook-form";
 import { format } from "date-fns";
+import { useSession } from "next-auth/react";
+import { Edit, Trash2 } from "lucide-react";
 
 function BudgetForm({ onSuccess }: { onSuccess: () => void }) {
   const { register, handleSubmit, control, reset, formState: { isSubmitting } } = useForm({
@@ -48,22 +52,79 @@ function BudgetForm({ onSuccess }: { onSuccess: () => void }) {
         <div className="space-y-1"><Label>Department</Label><Input {...register("department")} /></div>
         <div className="space-y-1"><Label>Allocated Amount (₹)</Label><Input {...register("allocatedAmount")} type="number" step="0.01" /></div>
       </div>
-      <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Create Budget Head"}</Button>
+      <div className="flex gap-2">
+        <DialogClose render={<Button type="button" variant="outline" className="flex-1" />}>Cancel</DialogClose>
+        <Button type="submit" className="flex-1" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Create Budget Head"}</Button>
+      </div>
+    </form>
+  );
+}
+
+function EditBudgetForm({ budget, onSuccess }: { budget: any; onSuccess: () => void }) {
+  const { register, handleSubmit, control, formState: { isSubmitting } } = useForm({
+    defaultValues: {
+      name: budget.name ?? "", code: budget.code ?? "", type: budget.type ?? "expense",
+      financialYear: budget.financialYear ?? "", department: budget.department ?? "",
+      allocatedAmount: budget.allocatedAmount ?? "0",
+    }
+  });
+
+  async function onSubmit(data: any) {
+    await axios.patch(`/api/finance/budget/${budget.id}`, data);
+    toast.success("Budget head updated");
+    onSuccess();
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1"><Label>Name *</Label><Input {...register("name", { required: true })} /></div>
+        <div className="space-y-1"><Label>Code *</Label><Input {...register("code", { required: true })} /></div>
+        <div className="space-y-1">
+          <Label>Type</Label>
+          <Controller name="type" control={control} render={({ field }) => (
+            <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="expense">Expense</SelectItem>
+                <SelectItem value="income">Income</SelectItem>
+              </SelectContent>
+            </Select>
+          )} />
+        </div>
+        <div className="space-y-1"><Label>Financial Year</Label><Input {...register("financialYear")} /></div>
+        <div className="space-y-1"><Label>Department</Label><Input {...register("department")} /></div>
+        <div className="space-y-1"><Label>Allocated Amount (₹)</Label><Input {...register("allocatedAmount")} type="number" step="0.01" /></div>
+      </div>
+      <div className="flex gap-2">
+        <DialogClose render={<Button type="button" variant="outline" className="flex-1" />}>Cancel</DialogClose>
+        <Button type="submit" className="flex-1" disabled={isSubmitting}>{isSubmitting ? "Saving..." : "Save Changes"}</Button>
+      </div>
     </form>
   );
 }
 
 export default function FinancePage() {
   const [openBudget, setOpenBudget] = useState(false);
+  const [editingBudget, setEditingBudget] = useState<any>(null);
   const [fy, setFy] = useState(`${new Date().getFullYear()}-${new Date().getFullYear()+1}`);
   const qc = useQueryClient();
+  const { data: session } = useSession();
+  const role = (session?.user as any)?.role ?? "readonly";
+  const canManageBudget = ["admin", "finance"].includes(role);
 
-  const { data: budgets } = useQuery({
+  const deleteBudget = useMutation({
+    mutationFn: (id: number) => axios.delete(`/api/finance/budget/${id}`),
+    onSuccess: () => { toast.success("Budget head removed"); qc.invalidateQueries({ queryKey: ["budgets"] }); },
+    onError: (err: any) => toast.error(err.response?.data?.error ?? "Delete failed"),
+  });
+
+  const { data: budgets, isLoading: budgetsLoading } = useQuery({
     queryKey: ["budgets", fy],
     queryFn: () => axios.get(`/api/finance/budget?fy=${fy}`).then((r) => r.data),
   });
 
-  const { data: fines } = useQuery({
+  const { data: fines, isLoading: finesLoading } = useQuery({
     queryKey: ["fines", "pending"],
     queryFn: () => axios.get("/api/finance/fines?status=pending").then((r) => r.data),
   });
@@ -93,12 +154,23 @@ export default function FinancePage() {
                 </DialogContent>
               </Dialog>
             </div>
+
+            <Dialog open={!!editingBudget} onOpenChange={(o) => !o && setEditingBudget(null)}>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Edit Budget Head</DialogTitle></DialogHeader>
+                {editingBudget && (
+                  <EditBudgetForm budget={editingBudget} onSuccess={() => { setEditingBudget(null); qc.invalidateQueries({ queryKey: ["budgets"] }); }} />
+                )}
+              </DialogContent>
+            </Dialog>
+
             <div className="grid grid-cols-3 gap-4">
               <Card><CardContent className="pt-4"><p className="text-xs text-slate-500">Total Allocated</p><p className="text-2xl font-bold text-blue-600">₹{totalAllocated.toLocaleString()}</p></CardContent></Card>
               <Card><CardContent className="pt-4"><p className="text-xs text-slate-500">Total Spent</p><p className="text-2xl font-bold text-red-600">₹{totalSpent.toLocaleString()}</p></CardContent></Card>
               <Card><CardContent className="pt-4"><p className="text-xs text-slate-500">Balance</p><p className="text-2xl font-bold text-green-600">₹{(totalAllocated - totalSpent).toLocaleString()}</p></CardContent></Card>
             </div>
             <div className="space-y-2">
+              {budgetsLoading && <RowListSkeleton count={3} />}
               {(budgets ?? []).map((b: any) => {
                 const pct = b.allocatedAmount > 0 ? (Number(b.spentAmount) / Number(b.allocatedAmount)) * 100 : 0;
                 return (
@@ -109,9 +181,25 @@ export default function FinancePage() {
                           <p className="font-medium text-sm">{b.name}</p>
                           <p className="text-xs text-slate-500">{b.code} · {b.department} · {b.financialYear}</p>
                         </div>
-                        <div className="text-right text-sm">
-                          <span className="font-medium">₹{Number(b.spentAmount).toLocaleString()}</span>
-                          <span className="text-slate-400"> / ₹{Number(b.allocatedAmount).toLocaleString()}</span>
+                        <div className="flex items-start gap-3">
+                          <div className="text-right text-sm">
+                            <span className="font-medium">₹{Number(b.spentAmount).toLocaleString()}</span>
+                            <span className="text-slate-400"> / ₹{Number(b.allocatedAmount).toLocaleString()}</span>
+                          </div>
+                          {canManageBudget && (
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon-sm" onClick={() => setEditingBudget(b)} title="Edit">
+                                <Edit className="h-3.5 w-3.5" />
+                              </Button>
+                              <ConfirmDialog
+                                trigger={<Button variant="ghost" size="icon-sm" title="Delete"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>}
+                                title="Remove this budget head?"
+                                description={`"${b.name}" will be deactivated. Historical spend data is preserved.`}
+                                confirmLabel="Delete"
+                                onConfirm={() => deleteBudget.mutate(b.id)}
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="mt-2 bg-slate-100 rounded-full h-1.5">
@@ -125,6 +213,7 @@ export default function FinancePage() {
           </TabsContent>
           <TabsContent value="fines" className="space-y-3">
             <p className="text-sm text-slate-500">{(fines ?? []).length} pending fines</p>
+            {finesLoading && <RowListSkeleton count={3} />}
             {(fines ?? []).map((f: any) => (
               <div key={f.id} className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
@@ -135,7 +224,14 @@ export default function FinancePage() {
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="capitalize">{f.status}</Badge>
                   {f.status === "pending" && (
-                    <Button size="sm" onClick={() => collectMutation.mutate(f.id)}>Collect</Button>
+                    <ConfirmDialog
+                      trigger={<Button size="sm">Collect</Button>}
+                      title="Collect this fine?"
+                      description={`This marks the ₹${Number(f.amount).toFixed(2)} fine as paid and immediately emails the member a receipt. Only confirm once payment has actually been received.`}
+                      confirmLabel="Yes, Collect"
+                      destructive={false}
+                      onConfirm={() => collectMutation.mutate(f.id)}
+                    />
                   )}
                 </div>
               </div>

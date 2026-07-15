@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import axios from "axios";
 import { format, formatDistanceToNowStrict } from "date-fns";
@@ -11,13 +11,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { RowListSkeleton } from "@/components/ui/loading-cards";
+import { Pagination } from "@/components/ui/pagination";
 import { toast } from "sonner";
-import { LogIn, LogOut, Users, Download } from "lucide-react";
+import { LogIn, LogOut, Users, Download, Undo2 } from "lucide-react";
 
 function ScanPanel() {
   const [barcode, setBarcode] = useState("");
   const [recent, setRecent] = useState<any[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const qc = useQueryClient();
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -32,12 +35,23 @@ function ScanPanel() {
       );
       setBarcode("");
       inputRef.current?.focus();
+      qc.invalidateQueries({ queryKey: ["gate-current"] });
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.error ?? "Scan failed");
       setBarcode("");
       inputRef.current?.focus();
     },
+  });
+
+  const undoMutation = useMutation({
+    mutationFn: (visitId: number) => axios.post("/api/gate/scan/undo", { visitId }).then((r) => r.data),
+    onSuccess: (_data, visitId) => {
+      setRecent((prev) => prev.map((r) => (r.visit.id === visitId ? { ...r, undone: true } : r)));
+      toast.success("Scan undone");
+      qc.invalidateQueries({ queryKey: ["gate-current"] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error ?? "Undo failed"),
   });
 
   function handleScan(e: React.KeyboardEvent) {
@@ -68,14 +82,31 @@ function ScanPanel() {
           <p className="text-sm text-slate-400 text-center py-8">No scans yet in this session</p>
         )}
         {recent.map((r, i) => (
-          <Alert key={i} className={r.action === "entry" ? "border-green-200 bg-green-50" : "border-blue-200 bg-blue-50"}>
+          <Alert
+            key={i}
+            className={r.undone ? "border-slate-200 bg-slate-50 opacity-60" : r.action === "entry" ? "border-green-200 bg-green-50" : "border-blue-200 bg-blue-50"}
+          >
             {r.action === "entry" ? <LogIn className="h-4 w-4 text-green-600" /> : <LogOut className="h-4 w-4 text-blue-600" />}
-            <AlertDescription className="text-sm flex justify-between w-full">
+            <AlertDescription className="text-sm flex items-center justify-between w-full gap-2">
               <span>
                 <strong>{r.member.name}</strong> ({r.member.rollNo ?? r.member.membershipNo}) — {r.action === "entry" ? "Entry" : "Exit"}
                 {r.action === "exit" && ` · ${r.visit.durationMinutes} min`}
+                {r.undone && <span className="text-slate-400"> · undone</span>}
               </span>
-              <span className="text-slate-500">{format(new Date(r.at), "HH:mm:ss")}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-slate-500">{format(new Date(r.at), "HH:mm:ss")}</span>
+                {!r.undone && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2"
+                    disabled={undoMutation.isPending}
+                    onClick={() => undoMutation.mutate(r.visit.id)}
+                  >
+                    <Undo2 className="h-3 w-3 mr-1" /> Undo
+                  </Button>
+                )}
+              </div>
             </AlertDescription>
           </Alert>
         ))}
@@ -98,7 +129,7 @@ function CurrentlyInsidePanel() {
         <span className="text-lg font-bold">{data?.count ?? 0}</span>
         <span className="text-sm text-slate-500">member(s) currently inside</span>
       </div>
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : (
+      {isLoading ? <RowListSkeleton count={4} /> : (
         <div className="space-y-2 max-h-[28rem] overflow-y-auto">
           {(data?.visitors ?? []).length === 0 && (
             <p className="text-sm text-slate-400 text-center py-8">Nobody is currently inside</p>
@@ -176,7 +207,7 @@ function HistoryPanel() {
         </Button>
       </div>
 
-      {isFetching ? <p className="text-sm text-slate-500">Loading...</p> : (
+      {isFetching ? <RowListSkeleton count={4} /> : (
         <div className="space-y-2 max-h-[24rem] overflow-y-auto">
           {(data?.visits ?? []).length === 0 && (
             <p className="text-sm text-slate-400 text-center py-8">No visits found for this filter</p>
@@ -203,13 +234,7 @@ function HistoryPanel() {
         </div>
       )}
 
-      <div className="flex justify-between items-center pt-2">
-        <span className="text-xs text-slate-500">Page {data?.page ?? page} · {data?.total ?? 0} total</span>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</Button>
-          <Button size="sm" variant="outline" disabled={(data?.visits?.length ?? 0) < limit} onClick={() => setPage((p) => p + 1)}>Next</Button>
-        </div>
-      </div>
+      <Pagination page={data?.page ?? page} onPageChange={setPage} hasNext={(data?.visits?.length ?? 0) >= limit} total={data?.total} />
     </div>
   );
 }

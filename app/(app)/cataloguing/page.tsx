@@ -7,15 +7,93 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, BookOpen, Edit } from "lucide-react";
+import { CardGridSkeleton } from "@/components/ui/loading-cards";
+import { Pagination } from "@/components/ui/pagination";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Plus, Search, BookOpen, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useForm, Controller } from "react-hook-form";
+import { useSession } from "next-auth/react";
 
 const MATERIAL_TYPES = ["book","journal","magazine","newspaper","av_material","map","manuscript","thesis","digital","other"];
+
+function BookFormFields({ register, control }: { register: any; control: any }) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div className="col-span-2 space-y-1">
+        <Label>Title *</Label>
+        <Input {...register("title", { required: true })} placeholder="Book title" />
+      </div>
+      <div className="space-y-1">
+        <Label>Authors (semicolon-separated)</Label>
+        <Input {...register("authors")} placeholder="Author One; Author Two" />
+      </div>
+      <div className="space-y-1">
+        <Label>Material Type</Label>
+        <Controller name="materialType" control={control} render={({ field }) => (
+          <Select onValueChange={field.onChange} defaultValue={field.value}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {MATERIAL_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )} />
+      </div>
+      <div className="space-y-1">
+        <Label>Publisher</Label>
+        <Input {...register("publisher")} />
+      </div>
+      <div className="space-y-1">
+        <Label>Year</Label>
+        <Input {...register("publicationYear")} type="number" />
+      </div>
+      <div className="space-y-1">
+        <Label>ISBN</Label>
+        <Input {...register("isbn")} />
+      </div>
+      <div className="space-y-1">
+        <Label>Dewey No.</Label>
+        <Input {...register("deweyNo")} placeholder="e.g. 005.133" />
+      </div>
+      <div className="space-y-1">
+        <Label>Call Number</Label>
+        <Input {...register("callNumber")} />
+      </div>
+      <div className="space-y-1">
+        <Label>Edition</Label>
+        <Input {...register("edition")} />
+      </div>
+      <div className="space-y-1">
+        <Label>Language</Label>
+        <Input {...register("language")} />
+      </div>
+      <div className="space-y-1">
+        <Label>Price (₹)</Label>
+        <Input {...register("price")} type="number" step="0.01" />
+      </div>
+      <div className="space-y-1">
+        <Label>Location / Shelf</Label>
+        <Input {...register("location")} placeholder="E.g. CS Section" />
+      </div>
+      <div className="space-y-1">
+        <Label>Shelf No.</Label>
+        <Input {...register("shelfNo")} />
+      </div>
+      <div className="col-span-2 space-y-1">
+        <Label>Subjects (semicolon-separated)</Label>
+        <Input {...register("subjects")} placeholder="Computer Science; Programming" />
+      </div>
+      <div className="col-span-2 space-y-1">
+        <Label>Abstract</Label>
+        <Textarea {...register("abstract")} rows={2} />
+      </div>
+    </div>
+  );
+}
 
 function AddBookForm({ onSuccess }: { onSuccess: () => void }) {
   const { register, handleSubmit, control, reset, formState: { isSubmitting } } = useForm({
@@ -38,82 +116,57 @@ function AddBookForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2 space-y-1">
-          <Label>Title *</Label>
-          <Input {...register("title", { required: true })} placeholder="Book title" />
-        </div>
-        <div className="space-y-1">
-          <Label>Authors (semicolon-separated)</Label>
-          <Input {...register("authors")} placeholder="Author One; Author Two" />
-        </div>
-        <div className="space-y-1">
-          <Label>Material Type</Label>
-          <Controller name="materialType" control={control} render={({ field }) => (
-            <Select onValueChange={field.onChange} defaultValue={field.value}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {MATERIAL_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )} />
-        </div>
-        <div className="space-y-1">
-          <Label>Publisher</Label>
-          <Input {...register("publisher")} />
-        </div>
-        <div className="space-y-1">
-          <Label>Year</Label>
-          <Input {...register("publicationYear")} type="number" />
-        </div>
-        <div className="space-y-1">
-          <Label>ISBN</Label>
-          <Input {...register("isbn")} />
-        </div>
-        <div className="space-y-1">
-          <Label>Dewey No.</Label>
-          <Input {...register("deweyNo")} placeholder="e.g. 005.133" />
-        </div>
-        <div className="space-y-1">
-          <Label>Call Number</Label>
-          <Input {...register("callNumber")} />
-        </div>
-        <div className="space-y-1">
-          <Label>Edition</Label>
-          <Input {...register("edition")} />
-        </div>
-        <div className="space-y-1">
-          <Label>Language</Label>
-          <Input {...register("language")} />
-        </div>
-        <div className="space-y-1">
-          <Label>Price (₹)</Label>
-          <Input {...register("price")} type="number" step="0.01" />
-        </div>
-        <div className="space-y-1">
-          <Label>No. of Copies</Label>
-          <Input {...register("copies")} type="number" min={1} defaultValue={1} />
-        </div>
-        <div className="space-y-1">
-          <Label>Location / Shelf</Label>
-          <Input {...register("location")} placeholder="E.g. CS Section" />
-        </div>
-        <div className="space-y-1">
-          <Label>Shelf No.</Label>
-          <Input {...register("shelfNo")} />
-        </div>
-        <div className="col-span-2 space-y-1">
-          <Label>Subjects (semicolon-separated)</Label>
-          <Input {...register("subjects")} placeholder="Computer Science; Programming" />
-        </div>
-        <div className="col-span-2 space-y-1">
-          <Label>Abstract</Label>
-          <Textarea {...register("abstract")} rows={2} />
-        </div>
+      <BookFormFields register={register} control={control} />
+      <div className="space-y-1">
+        <Label>No. of Copies</Label>
+        <Input {...register("copies")} type="number" min={1} defaultValue={1} />
       </div>
-      <Button type="submit" className="w-full" disabled={isSubmitting}>
-        {isSubmitting ? "Adding..." : "Add Book"}
-      </Button>
+      <div className="flex gap-2">
+        <DialogClose render={<Button type="button" variant="outline" className="flex-1" />}>
+          Cancel
+        </DialogClose>
+        <Button type="submit" className="flex-1" disabled={isSubmitting}>
+          {isSubmitting ? "Adding..." : "Add Book"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function EditBookForm({ item, onSuccess }: { item: any; onSuccess: () => void }) {
+  const { register, handleSubmit, control, formState: { isSubmitting } } = useForm({
+    defaultValues: {
+      title: item.title ?? "", authors: (item.authors ?? []).join("; "), publisher: item.publisher ?? "",
+      publicationYear: item.publicationYear ?? "", isbn: item.isbn ?? "", deweyNo: item.deweyNo ?? "",
+      callNumber: item.callNumber ?? "", subjects: (item.subjects ?? []).join("; "), language: item.language ?? "English",
+      pages: item.pages ?? "", price: item.price ?? "", location: item.location ?? "", shelfNo: item.shelfNo ?? "",
+      edition: item.edition ?? "", abstract: item.abstract ?? "", materialType: item.materialType ?? "book",
+    }
+  });
+
+  const onSubmit = async (data: any) => {
+    await axios.patch(`/api/books/${item.id}`, {
+      ...data,
+      authors: data.authors ? data.authors.split(";").map((a: string) => a.trim()) : [],
+      subjects: data.subjects ? data.subjects.split(";").map((s: string) => s.trim()) : [],
+      publicationYear: data.publicationYear ? parseInt(data.publicationYear) : undefined,
+      pages: data.pages ? parseInt(data.pages) : undefined,
+    });
+    toast.success("Book updated");
+    onSuccess();
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+      <BookFormFields register={register} control={control} />
+      <div className="flex gap-2">
+        <DialogClose render={<Button type="button" variant="outline" className="flex-1" />}>
+          Cancel
+        </DialogClose>
+        <Button type="submit" className="flex-1" disabled={isSubmitting}>
+          {isSubmitting ? "Saving..." : "Save Changes"}
+        </Button>
+      </div>
     </form>
   );
 }
@@ -123,12 +176,23 @@ export default function CataloguingPage() {
   const [type, setType] = useState("all");
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
   const qc = useQueryClient();
+  const { data: session } = useSession();
+  const role = (session?.user as any)?.role ?? "readonly";
+  const canEdit = ["admin", "librarian", "staff"].includes(role);
+  const canDelete = role === "admin";
 
   const { data, isLoading } = useQuery({
     queryKey: ["books", search, type, page],
     queryFn: () => axios.get(`/api/books?q=${search}&type=${type === "all" ? "" : type}&page=${page}`).then((r) => r.data),
     placeholderData: (prev) => prev,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => axios.delete(`/api/books/${id}`),
+    onSuccess: () => { toast.success("Book removed from catalogue"); qc.invalidateQueries({ queryKey: ["books"] }); },
+    onError: (err: any) => toast.error(err.response?.data?.error ?? "Delete failed"),
   });
 
   return (
@@ -163,8 +227,17 @@ export default function CataloguingPage() {
           </Dialog>
         </div>
 
+        <Dialog open={!!editingItem} onOpenChange={(o) => !o && setEditingItem(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader><DialogTitle>Edit Catalogue Item</DialogTitle></DialogHeader>
+            {editingItem && (
+              <EditBookForm item={editingItem} onSuccess={() => { setEditingItem(null); qc.invalidateQueries({ queryKey: ["books"] }); }} />
+            )}
+          </DialogContent>
+        </Dialog>
+
         {isLoading ? (
-          <p className="text-slate-500 text-sm">Loading...</p>
+          <CardGridSkeleton count={6} />
         ) : (
           <>
             <p className="text-xs text-slate-500">{data?.total ?? 0} items found</p>
@@ -190,15 +263,29 @@ export default function CataloguingPage() {
                       <Badge variant="outline">{item.materialType}</Badge>
                       <span className="text-slate-400">{item.accessionNo}</span>
                     </div>
+                    {(canEdit || canDelete) && (
+                      <div className="flex items-center justify-end gap-1 pt-1 border-t">
+                        {canEdit && (
+                          <Button variant="ghost" size="icon-sm" onClick={() => setEditingItem(item)} title="Edit">
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {canDelete && (
+                          <ConfirmDialog
+                            trigger={<Button variant="ghost" size="icon-sm" title="Delete"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>}
+                            title="Remove this item from the catalogue?"
+                            description={`"${item.title}" and its copies will be marked inactive and removed from search. This can only be undone by an admin re-editing the record directly in the database.`}
+                            confirmLabel="Delete"
+                            onConfirm={() => deleteMutation.mutate(item.id)}
+                          />
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
             </div>
-            <div className="flex gap-2 items-center pt-2">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-              <span className="text-sm text-slate-500">Page {page}</span>
-              <Button variant="outline" size="sm" disabled={data?.items?.length < 20} onClick={() => setPage(p => p + 1)}>Next</Button>
-            </div>
+            <Pagination page={page} onPageChange={setPage} hasNext={(data?.items?.length ?? 0) >= 20} total={data?.total} />
           </>
         )}
       </div>

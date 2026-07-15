@@ -33,11 +33,21 @@ export async function POST(req: NextRequest) {
   if (action === "send_vendor_reminders") {
     return sendVendorReminders();
   }
+  if (action === "count_overdues") {
+    const byMember = await getOverdueGroups();
+    const withEmail = [...byMember.values()].filter((items) => items[0].memberEmail).length;
+    return NextResponse.json({ count: withEmail, total: byMember.size });
+  }
+  if (action === "count_vendor_reminders") {
+    const pending = await getVendorReminderRows();
+    const withEmail = pending.filter((p) => p.vendorEmail).length;
+    return NextResponse.json({ count: withEmail, total: pending.length });
+  }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
 }
 
-async function sendOverdueReminders() {
+async function getOverdueGroups() {
   const today = new Date().toISOString().split("T")[0];
 
   const overdues = await db
@@ -55,13 +65,16 @@ async function sendOverdueReminders() {
     .innerJoin(catalogueItems, eq(copies.catalogueItemId, catalogueItems.id))
     .where(drizzleAnd(isNull(circTransactions.returnDate), sql`due_date < ${today}`, sql`transaction_type IN ('issue','overnight','renew')`));
 
-  // Group by member
   const byMember = new Map<number, typeof overdues>();
   for (const row of overdues) {
     if (!byMember.has(row.memberId)) byMember.set(row.memberId, []);
     byMember.get(row.memberId)!.push(row);
   }
+  return byMember;
+}
 
+async function sendOverdueReminders() {
+  const byMember = await getOverdueGroups();
   let sent = 0;
   for (const [memberId, items] of byMember) {
     const member = items[0];
@@ -105,13 +118,16 @@ async function sendOverdueReminders() {
   return NextResponse.json({ sent, total: byMember.size });
 }
 
-async function sendVendorReminders() {
-  const pending = await db
+async function getVendorReminderRows() {
+  return db
     .select({ poNo: purchaseOrders.poNo, vendorEmail: vendors.email, vendorName: vendors.name, orderDate: purchaseOrders.orderDate })
     .from(purchaseOrders)
     .innerJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
     .where(drizzleAnd(sql`status IN ('sent','partial')`, sql`expected_delivery < current_date`));
+}
 
+async function sendVendorReminders() {
+  const pending = await getVendorReminderRows();
   let sent = 0;
   for (const po of pending) {
     if (!po.vendorEmail) continue;
