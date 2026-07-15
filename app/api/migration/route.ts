@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import {
   catalogueItems, members, copies, circTransactions, fineRecords,
-  vendors, purchaseOrders, purchaseOrderItems, serials, serialIssues, libraryVisits,
+  vendors, purchaseOrders, purchaseOrderItems, serials, serialIssues, libraryVisits, budgetHeads,
+  digitalResources, reservations,
 } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
 import { parse } from "papaparse";
@@ -41,6 +42,8 @@ export async function POST(req: NextRequest) {
     "purchase-orders": importPurchaseOrders,
     serials: importSerials,
     "gate-visits": (r) => importGateVisits(r, staffId),
+    "digital-library": importDigitalLibrary,
+    reservations: importReservations,
   };
 
   const handler = handlers[type];
@@ -230,6 +233,12 @@ async function importPurchaseOrders(rows: Record<string, string>[]) {
       const [vendor] = await db.select().from(vendors).where(sql`lower(${vendors.name}) = lower(${row["vendor_name"]})`);
       if (!vendor) { failed.push({ row, error: `Vendor "${row["vendor_name"]}" not found — import vendors first` }); continue; }
 
+      let budgetHeadId: number | undefined;
+      if (row["budget_head_code"]) {
+        const [budgetHead] = await db.select().from(budgetHeads).where(sql`lower(${budgetHeads.code}) = lower(${row["budget_head_code"]})`);
+        if (budgetHead) budgetHeadId = budgetHead.id;
+      }
+
       const [{ maxSeq }] = await db.select({ maxSeq: sql<number>`coalesce(max(id), 0)` }).from(purchaseOrders);
       const orderDate = new Date(row["order_date"]);
       const poNo = generatePONo(orderDate.getFullYear(), Number(maxSeq) + 1);
@@ -243,6 +252,7 @@ async function importPurchaseOrders(rows: Record<string, string>[]) {
       const [po] = await db.insert(purchaseOrders).values({
         poNo,
         vendorId: vendor.id,
+        budgetHeadId,
         orderDate: row["order_date"],
         expectedDelivery: row["expected_delivery"] || undefined,
         status: (row["status"] as any) || "sent",
@@ -257,6 +267,10 @@ async function importPurchaseOrders(rows: Record<string, string>[]) {
         discount: String(discount),
         totalPrice: String(totalAmount),
       });
+
+      if (budgetHeadId) {
+        await db.update(budgetHeads).set({ spentAmount: sql`spent_amount + ${totalAmount}` }).where(eq(budgetHeads.id, budgetHeadId));
+      }
 
       imported.push(poNo);
     } catch (err) {
@@ -335,6 +349,69 @@ async function importGateVisits(rows: Record<string, string>[], staffId: number)
       }).returning();
 
       imported.push(visit.id);
+    } catch (err) {
+      failed.push({ row, error: String(err) });
+    }
+  }
+  return { imported, failed };
+}
+
+// CSV: title, resource_type, authors, source, external_url, subjects, language, year, abstract, is_public
+async function importDigitalLibrary(rows: Record<string, string>[]) {
+  const imported: string[] = [];
+  const failed: { row: unknown; error: string }[] = [];
+
+  for (const row of rows) {
+    try {
+      const [resource] = await db.insert(digitalResources).values({
+        title: row["title"] ?? "Unknown",
+        resourceType: row["resource_type"] || "article",
+        authors: row["authors"] ? row["authors"].split(";").map((a) => a.trim()) : [],
+        source: row["source"],
+        externalUrl: row["external_url"],
+        subjects: row["subjects"] ? row["subjects"].split(";").map((s) => s.trim()) : [],
+        language: row["language"] || "English",
+        publicationYear: row["year"] ? parseInt(row["year"]) : undefined,
+        abstract: row["abstract"],
+        isPublic: row["is_public"] ? row["is_public"].toLowerCase() === "true" : true,
+      }).returning();
+      imported.push(resource.title);
+    } catch (err) {
+      failed.push({ row, error: String(err) });
+    }
+  }
+  return { imported, failed };
+}
+
+// CSV: member_barcode, accession_no, reserved_at, status (active|fulfilled|cancelled)
+async function importReservations(rows: Record<string, string>[]) {
+  const imported: number[] = [];
+  const failed: { row: unknown; error: string }[] = [];
+
+  for (const row of rows) {
+    try {
+      const [member] = await db.select().from(members)
+        .where(or(eq(members.barcode, row["member_barcode"]), eq(members.rollNo, row["member_barcode"])));
+      if (!member) { failed.push({ row, error: `Member ${row["member_barcode"]} not found` }); continue; }
+
+      const [item] = await db.select().from(catalogueItems).where(eq(catalogueItems.accessionNo, row["accession_no"]));
+      if (!item) { failed.push({ row, error: `Book with accession no. ${row["accession_no"]} not found` }); continue; }
+
+      const status = row["status"] || "active";
+      const reservedAt = row["reserved_at"] ? new Date(row["reserved_at"]) : new Date();
+      const expiresAt = new Date(reservedAt); expiresAt.setDate(expiresAt.getDate() + 7);
+
+      const [reservation] = await db.insert(reservations).values({
+        memberId: member.id,
+        catalogueItemId: item.id,
+        reservedAt,
+        expiresAt,
+        status,
+        fulfilledAt: status === "fulfilled" ? reservedAt : undefined,
+        cancelledAt: status === "cancelled" ? reservedAt : undefined,
+      }).returning();
+
+      imported.push(reservation.id);
     } catch (err) {
       failed.push({ row, error: String(err) });
     }

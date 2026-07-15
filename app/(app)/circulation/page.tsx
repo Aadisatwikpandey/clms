@@ -221,8 +221,8 @@ function RenewPanel() {
       {history.length > 0 && (
         <div className="space-y-2">
           {history.map((h, i) => (
-            <Alert key={i} className="border-blue-200 bg-blue-50">
-              <RotateCcw className="h-4 w-4 text-blue-600" />
+            <Alert key={i} className="border-violet-200 bg-violet-50">
+              <RotateCcw className="h-4 w-4 text-violet-600" />
               <AlertDescription className="text-sm">
                 Renewed {h.barcode} · New due date: {h.newDueDate}
               </AlertDescription>

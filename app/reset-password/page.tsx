@@ -5,6 +5,7 @@ import Link from "next/link";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookMarked, Loader2 } from "lucide-react";
@@ -44,11 +45,11 @@ function ResetPasswordForm() {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="password">New Password</Label>
-        <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required />
+        <PasswordInput id="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required />
       </div>
       <div className="space-y-2">
         <Label htmlFor="confirm">Confirm Password</Label>
-        <Input id="confirm" type="password" placeholder="••••••••" value={confirm} onChange={(e) => setConfirm(e.target.value)} minLength={8} required />
+        <PasswordInput id="confirm" placeholder="••••••••" value={confirm} onChange={(e) => setConfirm(e.target.value)} minLength={8} required />
       </div>
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -60,12 +61,12 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-blue-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#3B2F8F] to-[#6D5DFB] p-4">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <div className="bg-blue-100 rounded-full p-3">
-              <BookMarked className="h-8 w-8 text-blue-600" />
+            <div className="bg-[#EEEBFF] rounded-full p-3">
+              <BookMarked className="h-8 w-8 text-violet-600" />
             </div>
           </div>
           <CardTitle className="text-2xl">Set New Password</CardTitle>
@@ -76,7 +77,7 @@ export default function ResetPasswordPage() {
             <ResetPasswordForm />
           </Suspense>
           <p className="text-center text-xs text-slate-500 mt-4">
-            <Link href="/login" className="text-blue-600 hover:underline">Back to Sign In</Link>
+            <Link href="/login" className="text-violet-600 hover:underline">Back to Sign In</Link>
           </p>
         </CardContent>
       </Card>

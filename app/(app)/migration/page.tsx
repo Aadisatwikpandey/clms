@@ -19,6 +19,8 @@ const IMPORT_TYPES: { value: string; label: string; note?: string }[] = [
   { value: "purchase-orders", label: "Purchase Orders", note: "Requires vendors to already exist — import vendors first." },
   { value: "serials", label: "Serials & Issues" },
   { value: "gate-visits", label: "Gate Visit Logs (entry/exit)", note: "Requires members to already exist." },
+  { value: "digital-library", label: "Digital Library Resources" },
+  { value: "reservations", label: "Reservations", note: "Requires members and books to already exist." },
 ];
 
 const REQUIRED_COLUMNS: Record<string, string[]> = {
@@ -26,9 +28,11 @@ const REQUIRED_COLUMNS: Record<string, string[]> = {
   members: ["name", "type", "department", "course", "roll_no", "email", "phone", "membership_no"],
   circulation: ["member_barcode", "copy_barcode", "issue_date", "due_date", "return_date"],
   vendors: ["name", "code", "contact_person", "email", "phone", "city", "gst_no"],
-  "purchase-orders": ["vendor_name", "order_date", "expected_delivery", "status", "item_title", "quantity", "unit_price", "discount"],
+  "purchase-orders": ["vendor_name", "budget_head_code", "order_date", "expected_delivery", "status", "item_title", "quantity", "unit_price", "discount"],
   serials: ["serial_title", "issn", "publisher", "frequency", "volume", "issue_no", "expected_date", "received_date", "status"],
   "gate-visits": ["member_barcode", "entry_time", "exit_time"],
+  "digital-library": ["title", "resource_type", "authors", "source", "external_url", "subjects", "language", "year", "abstract", "is_public"],
+  reservations: ["member_barcode", "accession_no", "reserved_at", "status"],
 };
 
 export default function MigrationPage() {

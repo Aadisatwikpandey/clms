@@ -83,6 +83,8 @@ async function main() {
   await importFile(path.join(dir, "circulation.csv"), "circulation");
   await importFile(path.join(dir, "serials.csv"), "serials");
   await importFile(path.join(dir, "gate-visits.csv"), "gate-visits");
+  await importFile(path.join(dir, "digital-library.csv"), "digital-library");
+  await importFile(path.join(dir, "reservations.csv"), "reservations");
 }
 
 main().catch((err) => { console.error("❌", err); process.exit(1); });

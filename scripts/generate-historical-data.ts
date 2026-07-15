@@ -76,6 +76,8 @@ async function main() {
     .from(schema.members).where(eq(schema.members.isActive, true));
   const copies = await db.select({ id: schema.copies.id, barcode: schema.copies.barcode })
     .from(schema.copies).where(eq(schema.copies.isActive, true));
+  const catalogueItems = await db.select({ id: schema.catalogueItems.id, accessionNo: schema.catalogueItems.accessionNo, title: schema.catalogueItems.title })
+    .from(schema.catalogueItems).where(eq(schema.catalogueItems.isActive, true));
 
   if (members.length === 0 || copies.length === 0) {
     console.error("No members/copies found — seed or import books+members first.");
@@ -126,12 +128,12 @@ async function main() {
     const status = orderDaysAgo > 30 ? pick(["received", "partial"]) : pick(poStatuses);
     const subject = pick(SUBJECTS);
     poRows.push([
-      vendor, isoDate(orderDate), isoDate(expected), status,
+      vendor, "BOOKS-GEN", isoDate(orderDate), isoDate(expected), status,
       `${subject}: ${pick(TITLE_SUFFIXES)}`, randInt(5, 50), randInt(300, 2500), randInt(0, 15),
     ]);
   }
   fs.writeFileSync(path.join(OUT_DIR, "purchase-orders.csv"),
-    toCsv(["vendor_name", "order_date", "expected_delivery", "status", "item_title", "quantity", "unit_price", "discount"], poRows));
+    toCsv(["vendor_name", "budget_head_code", "order_date", "expected_delivery", "status", "item_title", "quantity", "unit_price", "discount"], poRows));
 
   // ─── Serials + issues (monthly, past 12 months) ───
   const serialRows: (string | number)[][] = [];
@@ -171,11 +173,43 @@ async function main() {
   fs.writeFileSync(path.join(OUT_DIR, "gate-visits.csv"),
     toCsv(["member_barcode", "entry_time", "exit_time"], gateRows));
 
+  // ─── Digital Library resources ───
+  const RESOURCE_TYPES = ["ebook", "article", "video", "thesis", "report"];
+  const digitalRows: (string | number)[][] = [];
+  for (let i = 0; i < 60; i++) {
+    const subject = pick(SUBJECTS);
+    const resourceType = pick(RESOURCE_TYPES);
+    digitalRows.push([
+      `${subject}: ${pick(TITLE_SUFFIXES)}`, resourceType, `${pick(["Cormen","Stallings","Tanenbaum","Silberschatz","Norvig"])}, ${pick(["R.","A.","S.","P."])}`,
+      pick(PUBLISHERS), `https://digitallibrary.amc.edu.in/resources/${i + 1}`, subject, "English",
+      randInt(2015, 2025), `A comprehensive ${resourceType} covering ${subject.toLowerCase()} for undergraduate engineering students.`,
+      Math.random() < 0.85 ? "true" : "false",
+    ]);
+  }
+  fs.writeFileSync(path.join(OUT_DIR, "digital-library.csv"),
+    toCsv(["title", "resource_type", "authors", "source", "external_url", "subjects", "language", "year", "abstract", "is_public"], digitalRows));
+
+  // ─── Reservations (mostly active, some fulfilled/cancelled) ───
+  const reservationRows: (string | number)[][] = [];
+  const reservationCount = Math.min(80, catalogueItems.length, members.length);
+  const shuffledItems = [...catalogueItems].sort(() => Math.random() - 0.5);
+  for (let i = 0; i < reservationCount; i++) {
+    const member = pick(members);
+    const item = shuffledItems[i];
+    const reservedDaysAgo = randInt(0, 45);
+    const status = reservedDaysAgo < 7 ? "active" : pick(["active", "fulfilled", "cancelled"]);
+    reservationRows.push([member.barcode ?? "", item.accessionNo, isoDateTime(daysAgo(reservedDaysAgo)), status]);
+  }
+  fs.writeFileSync(path.join(OUT_DIR, "reservations.csv"),
+    toCsv(["member_barcode", "accession_no", "reserved_at", "status"], reservationRows));
+
   console.log(`✅ circulation.csv      -> ${circRows.length} rows`);
   console.log(`✅ vendors.csv          -> ${vendorRows.length} rows`);
   console.log(`✅ purchase-orders.csv  -> ${poRows.length} rows`);
   console.log(`✅ serials.csv          -> ${serialRows.length} rows`);
   console.log(`✅ gate-visits.csv      -> ${gateRows.length} rows`);
+  console.log(`✅ digital-library.csv  -> ${digitalRows.length} rows`);
+  console.log(`✅ reservations.csv     -> ${reservationRows.length} rows`);
 
   await conn.end();
 }

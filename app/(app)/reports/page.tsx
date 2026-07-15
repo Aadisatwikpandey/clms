@@ -12,7 +12,7 @@ import {
   PieChart, Pie, Cell, Legend, LineChart, Line,
 } from "recharts";
 
-const COLORS = ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6"];
+const COLORS = ["#6D5DFB","#14B8A6","#f59e0b","#ef4444","#EC4899"];
 
 export default function ReportsPage() {
   const [reportType, setReportType] = useState("circulation");
@@ -59,7 +59,7 @@ export default function ReportsPage() {
                         <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                         <YAxis tick={{ fontSize: 10 }} />
                         <Tooltip />
-                        <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="count" stroke="#6D5DFB" strokeWidth={2} dot={false} />
                       </LineChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -68,7 +68,7 @@ export default function ReportsPage() {
                   <CardHeader><CardTitle className="text-sm">Transactions by Type</CardTitle></CardHeader>
                   <CardContent className="flex justify-center">
                     <PieChart width={250} height={250}>
-                      <Pie data={data.byType ?? []} dataKey="count" nameKey="type" cx="50%" cy="50%" outerRadius={90} label>
+                      <Pie data={(data.byType ?? []).map((d: any) => ({ ...d, count: Number(d.count) }))} dataKey="count" nameKey="type" cx="50%" cy="50%" outerRadius={90} label>
                         {(data.byType ?? []).map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                       </Pie>
                       <Tooltip />
@@ -95,7 +95,7 @@ export default function ReportsPage() {
                         <XAxis dataKey="month" tick={{ fontSize: 10 }} />
                         <YAxis tick={{ fontSize: 10 }} />
                         <Tooltip />
-                        <Bar dataKey="amount" fill="#10b981" radius={[4,4,0,0]} />
+                        <Bar dataKey="amount" fill="#14B8A6" radius={[4,4,0,0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -112,7 +112,7 @@ export default function ReportsPage() {
                       <XAxis type="number" tick={{ fontSize: 10 }} />
                       <YAxis dataKey={reportType === "top-books" ? "title" : "name"} type="category" width={140} tick={{ fontSize: 9 }} />
                       <Tooltip />
-                      <Bar dataKey="count" fill="#8b5cf6" radius={[0,4,4,0]} />
+                      <Bar dataKey="count" fill="#EC4899" radius={[0,4,4,0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -123,7 +123,7 @@ export default function ReportsPage() {
                 <CardHeader><CardTitle className="text-sm">Serial Issue Status</CardTitle></CardHeader>
                 <CardContent className="flex justify-center">
                   <PieChart width={250} height={250}>
-                    <Pie data={data} dataKey="count" nameKey="status" cx="50%" cy="50%" outerRadius={90} label>
+                    <Pie data={(data ?? []).map((d: any) => ({ ...d, count: Number(d.count) }))} dataKey="count" nameKey="status" cx="50%" cy="50%" outerRadius={90} label>
                       {(data ?? []).map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                     </Pie>
                     <Tooltip />
@@ -137,7 +137,7 @@ export default function ReportsPage() {
                 <Card className="col-span-2 xl:col-span-1">
                   <CardContent className="pt-6">
                     <div className="space-y-3">
-                      <div className="flex justify-between"><span>Average Time in Library</span><span className="font-bold text-blue-600">{Math.round(data.avgDuration)} min</span></div>
+                      <div className="flex justify-between"><span>Average Time in Library</span><span className="font-bold text-violet-600">{Math.round(data.avgDuration)} min</span></div>
                     </div>
                   </CardContent>
                 </Card>
@@ -150,7 +150,7 @@ export default function ReportsPage() {
                         <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                         <YAxis tick={{ fontSize: 10 }} />
                         <Tooltip />
-                        <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="count" stroke="#6D5DFB" strokeWidth={2} dot={false} />
                       </LineChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -178,7 +178,7 @@ export default function ReportsPage() {
                         <XAxis type="number" tick={{ fontSize: 10 }} />
                         <YAxis dataKey="department" type="category" width={80} tick={{ fontSize: 9 }} />
                         <Tooltip />
-                        <Bar dataKey="count" fill="#8b5cf6" radius={[0,4,4,0]} />
+                        <Bar dataKey="count" fill="#EC4899" radius={[0,4,4,0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>

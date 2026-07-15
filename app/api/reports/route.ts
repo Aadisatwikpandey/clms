@@ -78,10 +78,24 @@ async function getCirculationStats(from: string | null, to: string | null) {
     .groupBy(sql`date(issue_date)`)
     .orderBy(sql`date(issue_date)`);
 
+  // Every loan is stored as a single row (type "issue"/"renew"/"overnight") with
+  // return_date filled in on return rather than a separate "return" row — so grouping
+  // by the raw transaction_type always collapses to one slice. Group by loan status instead.
   const byType = await db
-    .select({ type: circTransactions.transactionType, count: sql<number>`count(*)` })
+    .select({
+      type: sql<string>`case
+        when return_date is not null then 'Returned'
+        when due_date < current_date then 'Overdue'
+        else 'Currently Issued'
+      end`,
+      count: sql<number>`count(*)`,
+    })
     .from(circTransactions)
-    .groupBy(circTransactions.transactionType);
+    .groupBy(sql`case
+      when return_date is not null then 'Returned'
+      when due_date < current_date then 'Overdue'
+      else 'Currently Issued'
+    end`);
 
   return { daily, byType };
 }

@@ -100,6 +100,16 @@ export default function MemberDetailPage() {
     onError: (err: any) => toast.error(err.response?.data?.error ?? "Delete failed"),
   });
 
+  const canCollectFine = ["admin", "librarian", "staff", "finance"].includes(role);
+  const collectFineMutation = useMutation({
+    mutationFn: (fineId: number) => axios.post("/api/finance/fines", { fineId, sendReceipt: true }),
+    onSuccess: () => {
+      toast.success("Fine collected, receipt sent");
+      qc.invalidateQueries({ queryKey: ["member", id] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error ?? "Failed"),
+  });
+
   if (isLoading) {
     return (
       <div className="flex flex-col h-full overflow-auto">
@@ -129,7 +139,7 @@ export default function MemberDetailPage() {
         <Card>
           <CardHeader className="flex flex-row items-start justify-between space-y-0">
             <div className="flex items-center gap-3">
-              <div className="bg-blue-100 text-blue-700 rounded-full h-12 w-12 flex items-center justify-center font-bold text-lg">
+              <div className="bg-gradient-to-br from-[#6D5DFB] to-[#8B7CFC] text-white rounded-full h-12 w-12 flex items-center justify-center font-bold text-lg">
                 {member.name.charAt(0).toUpperCase()}
               </div>
               <div>
@@ -243,6 +253,16 @@ export default function MemberDetailPage() {
                 <div className="flex items-center gap-2">
                   <span className="font-medium">₹{Number(f.amount).toFixed(2)}</span>
                   <Badge variant="outline" className="capitalize">{f.status}</Badge>
+                  {f.status === "pending" && canCollectFine && (
+                    <ConfirmDialog
+                      trigger={<Button size="sm">Collect</Button>}
+                      title="Collect this fine?"
+                      description={`This marks the ₹${Number(f.amount).toFixed(2)} fine as paid and immediately emails ${member.name} a receipt. Only confirm once payment has actually been received.`}
+                      confirmLabel="Yes, Collect"
+                      destructive={false}
+                      onConfirm={() => collectFineMutation.mutate(f.id)}
+                    />
+                  )}
                 </div>
               </div>
             ))}

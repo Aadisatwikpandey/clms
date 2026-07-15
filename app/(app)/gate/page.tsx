@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RowListSkeleton } from "@/components/ui/loading-cards";
 import { Pagination } from "@/components/ui/pagination";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { LogIn, LogOut, Users, Download, Undo2 } from "lucide-react";
 
@@ -84,9 +85,9 @@ function ScanPanel() {
         {recent.map((r, i) => (
           <Alert
             key={i}
-            className={r.undone ? "border-slate-200 bg-slate-50 opacity-60" : r.action === "entry" ? "border-green-200 bg-green-50" : "border-blue-200 bg-blue-50"}
+            className={r.undone ? "border-slate-200 bg-slate-50 opacity-60" : r.action === "entry" ? "border-green-200 bg-green-50" : "border-violet-200 bg-violet-50"}
           >
-            {r.action === "entry" ? <LogIn className="h-4 w-4 text-green-600" /> : <LogOut className="h-4 w-4 text-blue-600" />}
+            {r.action === "entry" ? <LogIn className="h-4 w-4 text-green-600" /> : <LogOut className="h-4 w-4 text-violet-600" />}
             <AlertDescription className="text-sm flex items-center justify-between w-full gap-2">
               <span>
                 <strong>{r.member.name}</strong> ({r.member.rollNo ?? r.member.membershipNo}) — {r.action === "entry" ? "Entry" : "Exit"}
@@ -116,16 +117,30 @@ function ScanPanel() {
 }
 
 function CurrentlyInsidePanel() {
+  const qc = useQueryClient();
+  const { data: session } = useSession();
+  const role = (session?.user as any)?.role ?? "readonly";
+  const canMarkLeft = ["admin", "librarian", "staff"].includes(role);
+
   const { data, isLoading } = useQuery({
     queryKey: ["gate-current"],
     queryFn: () => axios.get("/api/gate/current").then((r) => r.data),
     refetchInterval: 15000,
   });
 
+  const markLeftMutation = useMutation({
+    mutationFn: (barcode: string) => axios.post("/api/gate/scan", { barcode }).then((r) => r.data),
+    onSuccess: (result) => {
+      toast.success(`${result.member.name} marked as left`);
+      qc.invalidateQueries({ queryKey: ["gate-current"] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error ?? "Failed"),
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Users className="h-5 w-5 text-blue-600" />
+        <Users className="h-5 w-5 text-violet-600" />
         <span className="text-lg font-bold">{data?.count ?? 0}</span>
         <span className="text-sm text-slate-500">member(s) currently inside</span>
       </div>
@@ -140,9 +155,21 @@ function CurrentlyInsidePanel() {
                 <p className="font-medium text-sm">{v.name} <span className="text-slate-400 font-normal">· {v.rollNo}</span></p>
                 <p className="text-xs text-slate-500">{v.department} · {v.memberType}</p>
               </div>
-              <div className="text-right">
-                <Badge variant="secondary">{formatDistanceToNowStrict(new Date(v.entryTime))}</Badge>
-                <p className="text-xs mt-1 text-slate-500">since {format(new Date(v.entryTime), "HH:mm")}</p>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <Badge variant="secondary">{formatDistanceToNowStrict(new Date(v.entryTime))}</Badge>
+                  <p className="text-xs mt-1 text-slate-500">since {format(new Date(v.entryTime), "HH:mm")}</p>
+                </div>
+                {canMarkLeft && (
+                  <ConfirmDialog
+                    trigger={<Button size="sm" variant="outline">Mark as Left</Button>}
+                    title={`Mark ${v.name} as left?`}
+                    description="Use this only if the member forgot to scan out or the scanner missed them. This closes their visit right now, as if they had scanned out themselves."
+                    confirmLabel="Mark as Left"
+                    destructive={false}
+                    onConfirm={() => markLeftMutation.mutate(v.barcode ?? v.rollNo)}
+                  />
+                )}
               </div>
             </div>
           ))}

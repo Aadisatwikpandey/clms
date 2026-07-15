@@ -378,6 +378,12 @@ export const serialIssues = pgTable("serial_issues", {
   location: varchar("location", { length: 100 }),
   bindingDate: date("binding_date"),
   notes: text("notes"),
+  // Reading-room style lending — a journal issue can be checked out to a member
+  // separately from its arrival/received status.
+  issuedToMemberId: integer("issued_to_member_id").references(() => members.id),
+  issuedAt: timestamp("issued_at"),
+  dueDate: date("due_date"),
+  returnedAt: timestamp("returned_at"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
   index("serial_issues_serial_idx").on(t.serialId),

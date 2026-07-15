@@ -22,6 +22,7 @@ export async function GET(_req: NextRequest) {
       department: members.department,
       memberType: members.memberType,
       rollNo: members.rollNo,
+      barcode: members.barcode,
     })
     .from(libraryVisits)
     .innerJoin(members, eq(libraryVisits.memberId, members.id))

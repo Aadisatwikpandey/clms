@@ -25,12 +25,12 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-blue-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#3B2F8F] to-[#6D5DFB] p-4">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <div className="bg-blue-100 rounded-full p-3">
-              <BookMarked className="h-8 w-8 text-blue-600" />
+            <div className="bg-[#EEEBFF] rounded-full p-3">
+              <BookMarked className="h-8 w-8 text-violet-600" />
             </div>
           </div>
           <CardTitle className="text-2xl">Reset Password</CardTitle>
@@ -61,7 +61,7 @@ export default function ForgotPasswordPage() {
             </form>
           )}
           <p className="text-center text-xs text-slate-500 mt-4">
-            <Link href="/login" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
+            <Link href="/login" className="inline-flex items-center gap-1 text-violet-600 hover:underline">
               <ArrowLeft className="h-3 w-3" /> Back to Sign In
             </Link>
           </p>

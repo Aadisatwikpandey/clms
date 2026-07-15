@@ -121,8 +121,8 @@ export default function OPACPage() {
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Material Type</p>
                   {(aggs.materialType?.buckets ?? []).map((b: any) => (
-                    <button key={b.key} onClick={() => setType(b.key === type ? "all" : b.key)} className="flex justify-between w-full text-xs py-0.5 hover:text-blue-600">
-                      <span className={b.key === type ? "text-blue-600 font-medium" : ""}>{b.key}</span>
+                    <button key={b.key} onClick={() => setType(b.key === type ? "all" : b.key)} className="flex justify-between w-full text-xs py-0.5 hover:text-violet-600">
+                      <span className={b.key === type ? "text-violet-600 font-medium" : ""}>{b.key}</span>
                       <span className="text-slate-400">{b.doc_count}</span>
                     </button>
                   ))}
@@ -130,8 +130,8 @@ export default function OPACPage() {
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Language</p>
                   {(aggs.language?.buckets ?? []).map((b: any) => (
-                    <button key={b.key} onClick={() => setLanguage(b.key === language ? "" : b.key)} className="flex justify-between w-full text-xs py-0.5 hover:text-blue-600">
-                      <span className={b.key === language ? "text-blue-600 font-medium" : ""}>{b.key}</span>
+                    <button key={b.key} onClick={() => setLanguage(b.key === language ? "" : b.key)} className="flex justify-between w-full text-xs py-0.5 hover:text-violet-600">
+                      <span className={b.key === language ? "text-violet-600 font-medium" : ""}>{b.key}</span>
                       <span className="text-slate-400">{b.doc_count}</span>
                     </button>
                   ))}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { purchaseOrders, budgetHeads } from "@/lib/db/schema";
+import { purchaseOrders, purchaseOrderItems, budgetHeads, vendors } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
@@ -8,6 +8,37 @@ import { z } from "zod";
 const updateSchema = z.object({
   status: z.enum(["draft", "approved", "sent", "partial", "received", "cancelled"]),
 });
+
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth();
+  if (!session || !["admin", "librarian", "finance"].includes((session.user as any).role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const [po] = await db
+    .select({
+      id: purchaseOrders.id, poNo: purchaseOrders.poNo, orderDate: purchaseOrders.orderDate,
+      expectedDelivery: purchaseOrders.expectedDelivery, status: purchaseOrders.status,
+      totalAmount: purchaseOrders.totalAmount, currency: purchaseOrders.currency,
+      invoiceNo: purchaseOrders.invoiceNo, invoiceDate: purchaseOrders.invoiceDate,
+      invoiceAmount: purchaseOrders.invoiceAmount, paidAmount: purchaseOrders.paidAmount,
+      notes: purchaseOrders.notes, createdAt: purchaseOrders.createdAt,
+      vendorId: vendors.id, vendorName: vendors.name, vendorEmail: vendors.email,
+      vendorPhone: vendors.phone, vendorCity: vendors.city, vendorGst: vendors.gstNo,
+      budgetHeadId: budgetHeads.id, budgetHeadName: budgetHeads.name, budgetHeadCode: budgetHeads.code,
+    })
+    .from(purchaseOrders)
+    .innerJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
+    .leftJoin(budgetHeads, eq(purchaseOrders.budgetHeadId, budgetHeads.id))
+    .where(eq(purchaseOrders.id, parseInt(id)));
+
+  if (!po) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const items = await db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, parseInt(id)));
+
+  return NextResponse.json({ ...po, items });
+}
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();

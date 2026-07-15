@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { purchaseOrders, purchaseOrderItems, budgetHeads } from "@/lib/db/schema";
+import { purchaseOrders, purchaseOrderItems, budgetHeads, vendors } from "@/lib/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
@@ -32,7 +32,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const orders = await db.select().from(purchaseOrders).orderBy(desc(purchaseOrders.createdAt)).limit(50);
+  const orders = await db
+    .select({
+      id: purchaseOrders.id, poNo: purchaseOrders.poNo, orderDate: purchaseOrders.orderDate,
+      expectedDelivery: purchaseOrders.expectedDelivery, status: purchaseOrders.status,
+      totalAmount: purchaseOrders.totalAmount, createdAt: purchaseOrders.createdAt,
+      vendorName: vendors.name, budgetHeadName: budgetHeads.name,
+    })
+    .from(purchaseOrders)
+    .innerJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
+    .leftJoin(budgetHeads, eq(purchaseOrders.budgetHeadId, budgetHeads.id))
+    .orderBy(desc(purchaseOrders.createdAt))
+    .limit(50);
   return NextResponse.json(orders);
 }
 

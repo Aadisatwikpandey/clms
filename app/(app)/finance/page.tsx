@@ -13,11 +13,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RowListSkeleton } from "@/components/ui/loading-cards";
+import { Pagination } from "@/components/ui/pagination";
 import { toast } from "sonner";
 import { useForm, Controller } from "react-hook-form";
 import { format } from "date-fns";
 import { useSession } from "next-auth/react";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, Search } from "lucide-react";
 
 function BudgetForm({ onSuccess }: { onSuccess: () => void }) {
   const { register, handleSubmit, control, reset, formState: { isSubmitting } } = useForm({
@@ -124,10 +125,16 @@ export default function FinancePage() {
     queryFn: () => axios.get(`/api/finance/budget?fy=${fy}`).then((r) => r.data),
   });
 
-  const { data: fines, isLoading: finesLoading } = useQuery({
-    queryKey: ["fines", "pending"],
-    queryFn: () => axios.get("/api/finance/fines?status=pending").then((r) => r.data),
+  const [finesSearch, setFinesSearch] = useState("");
+  const [finesStatus, setFinesStatus] = useState("pending");
+  const [finesPage, setFinesPage] = useState(1);
+  const finesLimit = 50;
+
+  const { data: finesData, isLoading: finesLoading } = useQuery({
+    queryKey: ["fines", finesStatus, finesSearch, finesPage],
+    queryFn: () => axios.get("/api/finance/fines", { params: { status: finesStatus === "all" ? undefined : finesStatus, q: finesSearch || undefined, page: finesPage, limit: finesLimit } }).then((r) => r.data),
   });
+  const fines = finesData?.fines;
 
   const collectMutation = useMutation({
     mutationFn: (fineId: number) => axios.post("/api/finance/fines", { fineId, sendReceipt: true }).then((r) => r.data),
@@ -165,7 +172,7 @@ export default function FinancePage() {
             </Dialog>
 
             <div className="grid grid-cols-3 gap-4">
-              <Card><CardContent className="pt-4"><p className="text-xs text-slate-500">Total Allocated</p><p className="text-2xl font-bold text-blue-600">₹{totalAllocated.toLocaleString()}</p></CardContent></Card>
+              <Card><CardContent className="pt-4"><p className="text-xs text-slate-500">Total Allocated</p><p className="text-2xl font-bold text-violet-600">₹{totalAllocated.toLocaleString()}</p></CardContent></Card>
               <Card><CardContent className="pt-4"><p className="text-xs text-slate-500">Total Spent</p><p className="text-2xl font-bold text-red-600">₹{totalSpent.toLocaleString()}</p></CardContent></Card>
               <Card><CardContent className="pt-4"><p className="text-xs text-slate-500">Balance</p><p className="text-2xl font-bold text-green-600">₹{(totalAllocated - totalSpent).toLocaleString()}</p></CardContent></Card>
             </div>
@@ -203,7 +210,7 @@ export default function FinancePage() {
                         </div>
                       </div>
                       <div className="mt-2 bg-slate-100 rounded-full h-1.5">
-                        <div className={`h-1.5 rounded-full ${pct > 90 ? "bg-red-500" : pct > 70 ? "bg-amber-500" : "bg-blue-500"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                        <div className={`h-1.5 rounded-full ${pct > 90 ? "bg-red-500" : pct > 70 ? "bg-amber-500" : "bg-[#6D5DFB]"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
                       </div>
                     </CardContent>
                   </Card>
@@ -212,12 +219,34 @@ export default function FinancePage() {
             </div>
           </TabsContent>
           <TabsContent value="fines" className="space-y-3">
-            <p className="text-sm text-slate-500">{(fines ?? []).length} pending fines</p>
+            <div className="flex gap-3 items-center">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  className="pl-9"
+                  placeholder="Search by USN, name, or membership no..."
+                  value={finesSearch}
+                  onChange={(e) => { setFinesSearch(e.target.value); setFinesPage(1); }}
+                />
+              </div>
+              <Select value={finesStatus} onValueChange={(v) => { if (v) { setFinesStatus(v); setFinesPage(1); } }}>
+                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-sm text-slate-500">{finesData?.total ?? 0} fine(s)</p>
             {finesLoading && <RowListSkeleton count={3} />}
+            {!finesLoading && (fines ?? []).length === 0 && (
+              <p className="text-sm text-slate-400 text-center py-8">No fines match this search.</p>
+            )}
             {(fines ?? []).map((f: any) => (
               <div key={f.id} className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
-                  <p className="font-medium text-sm">₹{Number(f.amount).toFixed(2)}</p>
+                  <p className="font-medium text-sm">₹{Number(f.amount).toFixed(2)} <span className="text-slate-400 font-normal">— {f.memberName} ({f.rollNo ?? f.membershipNo})</span></p>
                   <p className="text-xs text-slate-500">{f.reason}</p>
                   <p className="text-xs text-slate-400">{format(new Date(f.createdAt), "dd/MM/yyyy")}</p>
                 </div>
@@ -236,6 +265,9 @@ export default function FinancePage() {
                 </div>
               </div>
             ))}
+            {!finesLoading && (fines ?? []).length > 0 && (
+              <Pagination page={finesPage} onPageChange={setFinesPage} hasNext={(fines?.length ?? 0) >= finesLimit} total={finesData?.total} />
+            )}
           </TabsContent>
         </Tabs>
       </div>

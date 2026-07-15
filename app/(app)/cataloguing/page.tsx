@@ -133,6 +133,64 @@ function AddBookForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+function BookDetailDialog({ itemId, onEdit }: { itemId: number; onEdit: () => void }) {
+  const { data: item, isLoading } = useQuery({
+    queryKey: ["book-detail", itemId],
+    queryFn: () => axios.get(`/api/books/${itemId}`).then((r) => r.data),
+  });
+
+  if (isLoading) return <p className="text-sm text-slate-500">Loading...</p>;
+  if (!item) return <p className="text-sm text-slate-500">Not found.</p>;
+
+  return (
+    <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+      <div>
+        <p className="font-semibold text-base">{item.title}</p>
+        {item.subtitle && <p className="text-sm text-slate-500">{item.subtitle}</p>}
+        <p className="text-sm text-slate-500 mt-0.5">{item.authors?.join(", ")}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <div><span className="text-slate-500">Material Type:</span> <span className="capitalize">{item.materialType}</span></div>
+        <div><span className="text-slate-500">Accession No.:</span> {item.accessionNo}</div>
+        <div><span className="text-slate-500">Publisher:</span> {item.publisher ?? "—"}</div>
+        <div><span className="text-slate-500">Year:</span> {item.publicationYear ?? "—"}</div>
+        <div><span className="text-slate-500">Edition:</span> {item.edition ?? "—"}</div>
+        <div><span className="text-slate-500">Language:</span> {item.language ?? "—"}</div>
+        <div><span className="text-slate-500">ISBN:</span> {item.isbn ?? "—"}</div>
+        <div><span className="text-slate-500">Dewey No.:</span> {item.deweyNo ?? "—"}</div>
+        <div><span className="text-slate-500">Call Number:</span> {item.callNumber ?? "—"}</div>
+        <div><span className="text-slate-500">Location:</span> {item.location ?? "—"}</div>
+        <div><span className="text-slate-500">Price:</span> {item.price ? `₹${Number(item.price).toFixed(2)}` : "—"}</div>
+        <div><span className="text-slate-500">Copies:</span> {item.availableCopies}/{item.totalCopies} available</div>
+      </div>
+      {item.subjects?.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {item.subjects.map((s: string) => <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>)}
+        </div>
+      )}
+      {item.abstract && <p className="text-sm text-slate-600 border-t pt-2">{item.abstract}</p>}
+
+      <div>
+        <p className="text-sm font-medium mb-2">Copies ({item.copies?.length ?? 0})</p>
+        <div className="space-y-1">
+          {(item.copies ?? []).map((c: any) => (
+            <div key={c.id} className="flex items-center justify-between p-2 border rounded text-sm">
+              <span>{c.barcode}</span>
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                {c.location && <span>{c.location}</span>}
+                <Badge variant={c.status === "available" ? "default" : "secondary"} className="capitalize">{c.status}</Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <Button type="button" variant="outline" className="w-full" onClick={onEdit}>
+        <Edit className="h-3.5 w-3.5 mr-1" /> Edit This Item
+      </Button>
+    </div>
+  );
+}
+
 function EditBookForm({ item, onSuccess }: { item: any; onSuccess: () => void }) {
   const { register, handleSubmit, control, formState: { isSubmitting } } = useForm({
     defaultValues: {
@@ -177,6 +235,7 @@ export default function CataloguingPage() {
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [viewingItemId, setViewingItemId] = useState<number | null>(null);
   const qc = useQueryClient();
   const { data: session } = useSession();
   const role = (session?.user as any)?.role ?? "readonly";
@@ -236,6 +295,22 @@ export default function CataloguingPage() {
           </DialogContent>
         </Dialog>
 
+        <Dialog open={!!viewingItemId} onOpenChange={(o) => !o && setViewingItemId(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader><DialogTitle>Catalogue Item Details</DialogTitle></DialogHeader>
+            {viewingItemId && (
+              <BookDetailDialog
+                itemId={viewingItemId}
+                onEdit={() => {
+                  const item = (data?.items ?? []).find((i: any) => i.id === viewingItemId);
+                  setViewingItemId(null);
+                  if (item) setEditingItem(item);
+                }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+
         {isLoading ? (
           <CardGridSkeleton count={6} />
         ) : (
@@ -245,26 +320,28 @@ export default function CataloguingPage() {
               {(data?.items ?? []).map((item: any) => (
                 <Card key={item.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="pt-4 pb-4 space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <p className="font-semibold text-sm leading-tight line-clamp-2">{item.title}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{item.authors?.join(", ")}</p>
+                    <div className="space-y-2 cursor-pointer" onClick={() => setViewingItemId(item.id)}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <p className="font-semibold text-sm leading-tight line-clamp-2">{item.title}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">{item.authors?.join(", ")}</p>
+                        </div>
+                        <Badge variant={item.availableCopies > 0 ? "default" : "destructive"} className="shrink-0 text-xs">
+                          {item.availableCopies}/{item.totalCopies}
+                        </Badge>
                       </div>
-                      <Badge variant={item.availableCopies > 0 ? "default" : "destructive"} className="shrink-0 text-xs">
-                        {item.availableCopies}/{item.totalCopies}
-                      </Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-1 text-xs text-slate-500">
-                      <span>{item.publisher}</span>
-                      {item.publicationYear && <span>· {item.publicationYear}</span>}
-                      {item.isbn && <span>· ISBN: {item.isbn}</span>}
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <Badge variant="outline">{item.materialType}</Badge>
-                      <span className="text-slate-400">{item.accessionNo}</span>
+                      <div className="flex flex-wrap gap-1 text-xs text-slate-500">
+                        <span>{item.publisher}</span>
+                        {item.publicationYear && <span>· {item.publicationYear}</span>}
+                        {item.isbn && <span>· ISBN: {item.isbn}</span>}
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <Badge variant="outline">{item.materialType}</Badge>
+                        <span className="text-slate-400">{item.accessionNo}</span>
+                      </div>
                     </div>
                     {(canEdit || canDelete) && (
-                      <div className="flex items-center justify-end gap-1 pt-1 border-t">
+                      <div className="flex items-center justify-end gap-1 pt-1 border-t" onClick={(e) => e.stopPropagation()}>
                         {canEdit && (
                           <Button variant="ghost" size="icon-sm" onClick={() => setEditingItem(item)} title="Edit">
                             <Edit className="h-3.5 w-3.5" />

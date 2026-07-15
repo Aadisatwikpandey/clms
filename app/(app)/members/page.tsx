@@ -150,10 +150,10 @@ export default function MembersPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {(data?.members ?? []).map((m: any) => (
                 <Link key={m.id} href={`/members/${m.id}`}>
-                <Card className="hover:shadow-md hover:ring-1 hover:ring-blue-300 transition-shadow cursor-pointer">
+                <Card className="hover:shadow-md hover:ring-1 hover:ring-violet-300 transition-shadow cursor-pointer rounded-2xl">
                   <CardContent className="pt-4 pb-4 space-y-2">
                     <div className="flex items-center gap-2">
-                      <div className="bg-blue-100 text-blue-700 rounded-full h-9 w-9 flex items-center justify-center font-bold text-sm">
+                      <div className="bg-gradient-to-br from-[#6D5DFB] to-[#8B7CFC] text-white rounded-full h-9 w-9 flex items-center justify-center font-bold text-sm">
                         {m.name.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">

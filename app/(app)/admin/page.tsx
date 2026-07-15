@@ -5,6 +5,7 @@ import axios from "axios";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +46,7 @@ function EditUserForm({ user, onSuccess }: { user: any; onSuccess: () => void })
       <div className="space-y-1"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm(p => ({ ...p, email: e.target.value }))} required /></div>
       <div className="space-y-1">
         <Label>New Password</Label>
-        <Input type="password" value={form.password} onChange={(e) => setForm(p => ({ ...p, password: e.target.value }))} placeholder="Leave blank to keep current password" minLength={8} />
+        <PasswordInput value={form.password} onChange={(e) => setForm(p => ({ ...p, password: e.target.value }))} placeholder="Leave blank to keep current password" minLength={8} />
       </div>
       <div className="flex gap-2">
         <DialogClose render={<Button type="button" variant="outline" className="flex-1" />}>Cancel</DialogClose>
@@ -98,7 +99,7 @@ function UserManagementTab() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1"><Label>Full Name</Label><Input value={newUser.name} onChange={(e) => setNewUser(p => ({ ...p, name: e.target.value }))} required /></div>
               <div className="space-y-1"><Label>Email</Label><Input type="email" value={newUser.email} onChange={(e) => setNewUser(p => ({ ...p, email: e.target.value }))} required /></div>
-              <div className="space-y-1"><Label>Password</Label><Input type="password" value={newUser.password} onChange={(e) => setNewUser(p => ({ ...p, password: e.target.value }))} required /></div>
+              <div className="space-y-1"><Label>Password</Label><PasswordInput value={newUser.password} onChange={(e) => setNewUser(p => ({ ...p, password: e.target.value }))} required /></div>
               <div className="space-y-1">
                 <Label>Role</Label>
                 <select className="w-full border rounded px-3 py-2 text-sm" value={newUser.role} onChange={(e) => setNewUser(p => ({ ...p, role: e.target.value }))}>

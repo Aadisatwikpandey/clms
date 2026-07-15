@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { fineRecords, members } from "@/lib/db/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and, or, ilike } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { generateReceiptNo } from "@/lib/utils/barcode";
@@ -22,13 +22,41 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const memberId = searchParams.get("memberId");
   const status = searchParams.get("status");
+  const q = searchParams.get("q");
+  const page = parseInt(searchParams.get("page") ?? "1");
+  const limit = Math.min(parseInt(searchParams.get("limit") ?? "50"), 100);
+  const offset = (page - 1) * limit;
 
-  let query = db.select().from(fineRecords).orderBy(desc(fineRecords.createdAt)).$dynamic();
-  if (memberId) query = query.where(eq(fineRecords.memberId, parseInt(memberId)) as any);
-  if (status) query = query.where(eq(fineRecords.status, status as any) as any);
+  const conditions = [];
+  if (memberId) conditions.push(eq(fineRecords.memberId, parseInt(memberId)));
+  if (status && status !== "all") conditions.push(eq(fineRecords.status, status as any));
+  if (q) conditions.push(or(ilike(members.rollNo, `%${q}%`), ilike(members.name, `%${q}%`), ilike(members.membershipNo, `%${q}%`)));
+  const where = conditions.length ? and(...conditions) : undefined;
 
-  const rows = await query.limit(100);
-  return NextResponse.json(rows);
+  const [rows, [{ total }]] = await Promise.all([
+    db
+      .select({
+        id: fineRecords.id,
+        memberId: fineRecords.memberId,
+        amount: fineRecords.amount,
+        reason: fineRecords.reason,
+        status: fineRecords.status,
+        receiptNo: fineRecords.receiptNo,
+        createdAt: fineRecords.createdAt,
+        memberName: members.name,
+        rollNo: members.rollNo,
+        membershipNo: members.membershipNo,
+      })
+      .from(fineRecords)
+      .innerJoin(members, eq(fineRecords.memberId, members.id))
+      .where(where)
+      .orderBy(desc(fineRecords.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db.select({ total: sql<number>`count(*)` }).from(fineRecords).innerJoin(members, eq(fineRecords.memberId, members.id)).where(where),
+  ]);
+
+  return NextResponse.json({ fines: rows, total: Number(total), page });
 }
 
 export async function POST(req: NextRequest) {

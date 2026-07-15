@@ -22,6 +22,39 @@ const ISSUE_STATUS_COLORS: Record<string, string> = {
   expected: "secondary", received: "default", missing: "destructive", claimed: "outline", bound: "default"
 };
 
+function IssueToMemberForm({ issue, serialId, onSuccess }: { issue: any; serialId: number; onSuccess: () => void }) {
+  const [barcode, setBarcode] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await axios.post(`/api/serials/${serialId}/issues`, { issueId: issue.id, action: "issue", memberBarcode: barcode });
+      toast.success(`Issued to ${res.data.member.name}`);
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error ?? "Failed to issue");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-3">
+      <div className="space-y-1">
+        <Label>Member Barcode / USN</Label>
+        <Input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Scan or type member barcode" autoFocus required />
+        <p className="text-xs text-slate-500">Due back in 3 days (reading-room loan period).</p>
+      </div>
+      <div className="flex gap-2">
+        <DialogClose render={<Button type="button" variant="outline" className="flex-1" />}>Cancel</DialogClose>
+        <Button type="submit" className="flex-1" disabled={submitting || !barcode}>{submitting ? "Issuing..." : "Issue"}</Button>
+      </div>
+    </form>
+  );
+}
+
 function EditSerialForm({ serial, onSuccess }: { serial: any; onSuccess: (updated: any) => void }) {
   const { register, handleSubmit, control, formState: { isSubmitting } } = useForm({
     defaultValues: {
@@ -68,6 +101,7 @@ function EditSerialForm({ serial, onSuccess }: { serial: any; onSuccess: (update
 export default function SerialsPage() {
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [issuingTo, setIssuingTo] = useState<any>(null);
   const [selected, setSelected] = useState<any>(null);
   const qc = useQueryClient();
   const { data: session } = useSession();
@@ -111,6 +145,12 @@ export default function SerialsPage() {
     onSuccess: () => { toast.success("Issue updated"); qc.invalidateQueries({ queryKey: ["serial-issues"] }); },
   });
 
+  const returnIssue = useMutation({
+    mutationFn: (issueId: number) => axios.post(`/api/serials/${selected?.id}/issues`, { issueId, action: "return" }).then((r) => r.data),
+    onSuccess: () => { toast.success("Issue returned"); qc.invalidateQueries({ queryKey: ["serial-issues"] }); },
+    onError: (err: any) => toast.error(err.response?.data?.error ?? "Failed"),
+  });
+
   return (
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Serials & Journal Management" />
@@ -149,7 +189,7 @@ export default function SerialsPage() {
           </Dialog>
           {serialsLoading && <RowListSkeleton count={3} />}
           {(serialsList ?? []).map((s: any) => (
-            <Card key={s.id} className={`cursor-pointer transition-shadow hover:shadow-md ${selected?.id === s.id ? "ring-2 ring-blue-500" : ""}`} onClick={() => setSelected(s)}>
+            <Card key={s.id} className={`cursor-pointer transition-shadow hover:shadow-md rounded-2xl ${selected?.id === s.id ? "ring-2 ring-[#6D5DFB]" : ""}`} onClick={() => setSelected(s)}>
               <CardContent className="pt-3 pb-3">
                 <p className="font-medium text-sm line-clamp-1">{s.title}</p>
                 <p className="text-xs text-slate-500">{s.issn} · {s.frequency}</p>
@@ -192,38 +232,64 @@ export default function SerialsPage() {
                 )}
               </div>
               <div className="grid grid-cols-1 gap-2 max-h-[70vh] overflow-y-auto">
-                {(issues ?? []).map((issue: any) => (
-                  <div key={issue.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="text-sm font-medium">Vol. {issue.volume} · Issue {issue.issueNo}</p>
-                      <p className="text-xs text-slate-500">Expected: {issue.expectedDate}</p>
-                      {issue.receivedDate && <p className="text-xs text-green-600">Received: {issue.receivedDate}</p>}
+                {(issues ?? []).map((issue: any) => {
+                  const checkedOut = issue.issuedToMemberId && !issue.returnedAt;
+                  const canCirculate = ["received", "bound"].includes(issue.status);
+                  return (
+                    <div key={issue.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <p className="text-sm font-medium">Vol. {issue.volume} · Issue {issue.issueNo}</p>
+                        <p className="text-xs text-slate-500">Expected: {issue.expectedDate}</p>
+                        {issue.receivedDate && <p className="text-xs text-green-600">Received: {issue.receivedDate}</p>}
+                        {checkedOut && (
+                          <p className="text-xs text-amber-600">Issued to {issue.issuedToName} ({issue.issuedToRollNo}) · Due {issue.dueDate}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={ISSUE_STATUS_COLORS[issue.status] as any}>{issue.status}</Badge>
+                        {issue.status === "expected" && (
+                          <ConfirmDialog
+                            trigger={<Button size="sm" variant="outline">Mark Received</Button>}
+                            title="Mark this issue as received?"
+                            description={`Vol. ${issue.volume} · Issue ${issue.issueNo} will be recorded as received today.`}
+                            confirmLabel="Mark Received"
+                            destructive={false}
+                            onConfirm={() => updateIssue.mutate({ issueId: issue.id, status: "received", receivedDate: new Date().toISOString().split("T")[0] })}
+                          />
+                        )}
+                        {issue.status === "expected" && (
+                          <ConfirmDialog
+                            trigger={<Button size="sm" variant="destructive">Missing</Button>}
+                            title="Mark this issue as missing?"
+                            description={`Vol. ${issue.volume} · Issue ${issue.issueNo} will be flagged missing so it can be claimed from the publisher/vendor.`}
+                            confirmLabel="Mark Missing"
+                            onConfirm={() => updateIssue.mutate({ issueId: issue.id, status: "missing" })}
+                          />
+                        )}
+                        {canCirculate && !checkedOut && (
+                          <Button size="sm" variant="outline" onClick={() => setIssuingTo(issue)}>Issue to Member</Button>
+                        )}
+                        {checkedOut && (
+                          <Button size="sm" variant="outline" onClick={() => returnIssue.mutate(issue.id)}>Return</Button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={ISSUE_STATUS_COLORS[issue.status] as any}>{issue.status}</Badge>
-                      {issue.status === "expected" && (
-                        <ConfirmDialog
-                          trigger={<Button size="sm" variant="outline">Mark Received</Button>}
-                          title="Mark this issue as received?"
-                          description={`Vol. ${issue.volume} · Issue ${issue.issueNo} will be recorded as received today.`}
-                          confirmLabel="Mark Received"
-                          destructive={false}
-                          onConfirm={() => updateIssue.mutate({ issueId: issue.id, status: "received", receivedDate: new Date().toISOString().split("T")[0] })}
-                        />
-                      )}
-                      {issue.status === "expected" && (
-                        <ConfirmDialog
-                          trigger={<Button size="sm" variant="destructive">Missing</Button>}
-                          title="Mark this issue as missing?"
-                          description={`Vol. ${issue.volume} · Issue ${issue.issueNo} will be flagged missing so it can be claimed from the publisher/vendor.`}
-                          confirmLabel="Mark Missing"
-                          onConfirm={() => updateIssue.mutate({ issueId: issue.id, status: "missing" })}
-                        />
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
+
+              <Dialog open={!!issuingTo} onOpenChange={(o) => !o && setIssuingTo(null)}>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader><DialogTitle>Issue to Member</DialogTitle></DialogHeader>
+                  {issuingTo && (
+                    <IssueToMemberForm
+                      issue={issuingTo}
+                      serialId={selected.id}
+                      onSuccess={() => { setIssuingTo(null); qc.invalidateQueries({ queryKey: ["serial-issues"] }); }}
+                    />
+                  )}
+                </DialogContent>
+              </Dialog>
             </div>
           ) : (
             <div className="flex items-center justify-center h-48 text-slate-400">

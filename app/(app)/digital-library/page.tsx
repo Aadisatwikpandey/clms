@@ -154,7 +154,7 @@ export default function DigitalLibraryPage() {
                 <Card key={r.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="pt-4 pb-4 space-y-2">
                     <div className="flex items-start gap-2">
-                      <FileText className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                      <FileText className="h-4 w-4 text-[#6D5DFB] mt-0.5 shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm line-clamp-2">{r.title}</p>
                         <p className="text-xs text-slate-500">{r.authors?.join(", ")}</p>
@@ -166,7 +166,7 @@ export default function DigitalLibraryPage() {
                         {r.language && <Badge variant="secondary" className="text-xs">{r.language}</Badge>}
                       </div>
                       {r.externalUrl && (
-                        <a href={r.externalUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-xs text-blue-600 hover:underline">
+                        <a href={r.externalUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-xs text-violet-600 hover:underline">
                           <ExternalLink className="h-3 w-3 mr-1" /> Open
                         </a>
                       )}

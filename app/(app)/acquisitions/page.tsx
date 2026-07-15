@@ -14,7 +14,75 @@ import { RowListSkeleton } from "@/components/ui/loading-cards";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { X } from "lucide-react";
+import { X, Eye } from "lucide-react";
+
+function PODetailDialog({ poId, onClose }: { poId: number; onClose: () => void }) {
+  const { data: po, isLoading } = useQuery({
+    queryKey: ["purchase-order", poId],
+    queryFn: () => axios.get(`/api/purchase-orders/${poId}`).then((r) => r.data),
+  });
+
+  if (isLoading) return <RowListSkeleton count={3} />;
+  if (!po) return <p className="text-sm text-slate-500">Not found.</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <div><span className="text-slate-500">PO No:</span> <span className="font-medium">{po.poNo}</span></div>
+        <div><span className="text-slate-500">Status:</span> <Badge variant={STATUS_COLORS[po.status] as any}>{po.status}</Badge></div>
+        <div><span className="text-slate-500">Vendor:</span> {po.vendorName}</div>
+        <div><span className="text-slate-500">Vendor Contact:</span> {po.vendorEmail ?? "—"} {po.vendorPhone && `· ${po.vendorPhone}`}</div>
+        <div><span className="text-slate-500">Order Date:</span> {po.orderDate}</div>
+        <div><span className="text-slate-500">Expected Delivery:</span> {po.expectedDelivery ?? "—"}</div>
+        <div><span className="text-slate-500">Budget Head:</span> {po.budgetHeadName ? `${po.budgetHeadName} (${po.budgetHeadCode})` : "— not linked"}</div>
+        <div><span className="text-slate-500">Total Amount:</span> <span className="font-semibold">₹{Number(po.totalAmount).toLocaleString()}</span></div>
+        {po.invoiceNo && <div><span className="text-slate-500">Invoice:</span> {po.invoiceNo} · {po.invoiceDate}</div>}
+        {Number(po.paidAmount) > 0 && <div><span className="text-slate-500">Paid:</span> ₹{Number(po.paidAmount).toLocaleString()}</div>}
+      </div>
+      {po.notes && <p className="text-sm text-slate-600 border-t pt-2">{po.notes}</p>}
+      <div>
+        <p className="text-sm font-medium mb-2">Line Items ({po.items.length})</p>
+        <div className="space-y-1">
+          {po.items.map((it: any) => (
+            <div key={it.id} className="flex items-center justify-between p-2 border rounded text-sm">
+              <div>
+                <p>{it.title}</p>
+                <p className="text-xs text-slate-500">{it.authors} {it.isbn && `· ISBN ${it.isbn}`}</p>
+              </div>
+              <div className="text-right text-xs text-slate-500">
+                <p>{it.quantity} × ₹{Number(it.unitPrice).toLocaleString()}{Number(it.discount) > 0 && ` (−${it.discount}%)`}</p>
+                <p className="font-medium text-slate-800">₹{Number(it.totalPrice).toLocaleString()}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <Button type="button" variant="outline" className="w-full" onClick={onClose}>Close</Button>
+    </div>
+  );
+}
+
+function VendorDetailDialog({ vendor, onClose }: { vendor: any; onClose: () => void }) {
+  return (
+    <div className="space-y-3 text-sm">
+      <div className="grid grid-cols-2 gap-3">
+        <div><span className="text-slate-500">Name:</span> <span className="font-medium">{vendor.name}</span></div>
+        <div><span className="text-slate-500">Code:</span> {vendor.code ?? "—"}</div>
+        <div><span className="text-slate-500">Contact Person:</span> {vendor.contactPerson ?? "—"}</div>
+        <div><span className="text-slate-500">Email:</span> {vendor.email ?? "—"}</div>
+        <div><span className="text-slate-500">Phone:</span> {vendor.phone ?? "—"}</div>
+        <div><span className="text-slate-500">City:</span> {vendor.city ?? "—"}, {vendor.country}</div>
+        <div><span className="text-slate-500">GST No.:</span> {vendor.gstNo ?? "—"}</div>
+        <div><span className="text-slate-500">PAN No.:</span> {vendor.panNo ?? "—"}</div>
+        <div><span className="text-slate-500">Total Orders:</span> {vendor.totalOrders ?? 0}</div>
+        <div><span className="text-slate-500">Rating:</span> {vendor.rating ?? "—"} {vendor.deliveryRating && `(delivery: ${vendor.deliveryRating})`}</div>
+      </div>
+      {vendor.address && <div className="border-t pt-2"><span className="text-slate-500">Address:</span> {vendor.address}</div>}
+      {vendor.notes && <div><span className="text-slate-500">Notes:</span> {vendor.notes}</div>}
+      <Button type="button" variant="outline" className="w-full" onClick={onClose}>Close</Button>
+    </div>
+  );
+}
 
 function AddVendorForm({ onSuccess }: { onSuccess: () => void }) {
   const [form, setForm] = useState({ name: "", code: "", contactPerson: "", email: "", phone: "", address: "", city: "", gstNo: "" });
@@ -62,6 +130,8 @@ const STATUS_COLORS: Record<string, string> = {
 export default function AcquisitionsPage() {
   const [openPO, setOpenPO] = useState(false);
   const [openVendor, setOpenVendor] = useState(false);
+  const [viewingPOId, setViewingPOId] = useState<number | null>(null);
+  const [viewingVendor, setViewingVendor] = useState<any>(null);
   const qc = useQueryClient();
 
   const { data: orders, isLoading: ordersLoading } = useQuery({
@@ -74,8 +144,13 @@ export default function AcquisitionsPage() {
     queryFn: () => axios.get("/api/vendors").then((r) => r.data),
   });
 
+  const { data: budgetHeadsList } = useQuery({
+    queryKey: ["budgets", "acquisitions"],
+    queryFn: () => axios.get("/api/finance/budget").then((r) => r.data),
+  });
+
   const [poForm, setPOForm] = useState({
-    vendorId: "", orderDate: new Date().toISOString().split("T")[0], expectedDelivery: "", notes: "",
+    vendorId: "", budgetHeadId: "", orderDate: new Date().toISOString().split("T")[0], expectedDelivery: "", notes: "",
     items: [{ title: "", authors: "", isbn: "", quantity: 1, unitPrice: "", discount: "0" }],
   });
 
@@ -93,7 +168,12 @@ export default function AcquisitionsPage() {
 
   function handleCreatePO(e: React.FormEvent) {
     e.preventDefault();
-    createPO.mutate({ ...poForm, vendorId: parseInt(poForm.vendorId), items: poForm.items.map(item => ({ ...item, quantity: parseInt(String(item.quantity)) })) });
+    createPO.mutate({
+      ...poForm,
+      vendorId: parseInt(poForm.vendorId),
+      budgetHeadId: poForm.budgetHeadId ? parseInt(poForm.budgetHeadId) : undefined,
+      items: poForm.items.map(item => ({ ...item, quantity: parseInt(String(item.quantity)) })),
+    });
   }
 
   function addItem() {
@@ -135,6 +215,15 @@ export default function AcquisitionsPage() {
                       <div className="space-y-1">
                         <Label>Expected Delivery</Label>
                         <Input type="date" value={poForm.expectedDelivery} onChange={(e) => setPOForm(p => ({ ...p, expectedDelivery: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1 col-span-2">
+                        <Label>Budget Head</Label>
+                        <select className="w-full border rounded px-3 py-2 text-sm" value={poForm.budgetHeadId} onChange={(e) => setPOForm(p => ({ ...p, budgetHeadId: e.target.value }))}>
+                          <option value="">No budget head (won't count against any allocation)</option>
+                          {(budgetHeadsList ?? []).map((b: any) => (
+                            <option key={b.id} value={b.id}>{b.name} — ₹{Number(b.spentAmount).toLocaleString()}/₹{Number(b.allocatedAmount).toLocaleString()} used</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -179,14 +268,20 @@ export default function AcquisitionsPage() {
                 <Card key={po.id}>
                   <CardContent className="pt-3 pb-3 flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-sm">{po.poNo}</p>
-                      <p className="text-xs text-slate-500">Order Date: {po.orderDate} · Expected: {po.expectedDelivery ?? "—"}</p>
+                      <p className="font-medium text-sm">{po.poNo} <span className="text-slate-400 font-normal">· {po.vendorName}</span></p>
+                      <p className="text-xs text-slate-500">
+                        Order Date: {po.orderDate} · Expected: {po.expectedDelivery ?? "—"}
+                        {po.budgetHeadName && ` · ${po.budgetHeadName}`}
+                      </p>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right space-y-1">
                         <Badge variant={STATUS_COLORS[po.status] as any}>{po.status}</Badge>
                         <p className="text-sm font-semibold">₹{Number(po.totalAmount).toLocaleString()}</p>
                       </div>
+                      <Button size="sm" variant="ghost" onClick={() => setViewingPOId(po.id)} title="View Details">
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
                       {!["received", "cancelled"].includes(po.status) && (
                         <ConfirmDialog
                           trigger={<Button size="sm" variant="outline">Cancel PO</Button>}
@@ -201,6 +296,13 @@ export default function AcquisitionsPage() {
                 </Card>
               ))}
             </div>
+
+            <Dialog open={!!viewingPOId} onOpenChange={(o) => !o && setViewingPOId(null)}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader><DialogTitle>Purchase Order Details</DialogTitle></DialogHeader>
+                {viewingPOId && <PODetailDialog poId={viewingPOId} onClose={() => setViewingPOId(null)} />}
+              </DialogContent>
+            </Dialog>
           </TabsContent>
           <TabsContent value="vendors" className="space-y-3">
             <div className="flex justify-end">
@@ -215,12 +317,24 @@ export default function AcquisitionsPage() {
             {vendorsLoading && <RowListSkeleton count={3} />}
             {(vendors ?? []).map((v: any) => (
               <Card key={v.id}>
-                <CardContent className="pt-3 pb-3">
-                  <p className="font-medium text-sm">{v.name}</p>
-                  <p className="text-xs text-slate-500">{v.email} · {v.phone} · {v.city}</p>
+                <CardContent className="pt-3 pb-3 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">{v.name} {v.code && <span className="text-slate-400 font-normal">({v.code})</span>}</p>
+                    <p className="text-xs text-slate-500">{v.email} · {v.phone} · {v.city}</p>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => setViewingVendor(v)} title="View Details">
+                    <Eye className="h-3.5 w-3.5" />
+                  </Button>
                 </CardContent>
               </Card>
             ))}
+
+            <Dialog open={!!viewingVendor} onOpenChange={(o) => !o && setViewingVendor(null)}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader><DialogTitle>Vendor Details</DialogTitle></DialogHeader>
+                {viewingVendor && <VendorDetailDialog vendor={viewingVendor} onClose={() => setViewingVendor(null)} />}
+              </DialogContent>
+            </Dialog>
           </TabsContent>
         </Tabs>
       </div>
