@@ -73,7 +73,9 @@ export async function POST(req: NextRequest) {
         const [{ maxSeq }] = await db.select({ maxSeq: sql<number>`coalesce(max(id), 0)` }).from(members);
         const year = new Date().getFullYear();
         const membershipNo = row["membership_no"] || `AMC/${year}/${String(Number(maxSeq) + 1).padStart(5, "0")}`;
-        const barcode = generateMemberBarcode(membershipNo);
+        // The physical ID card barcode is the student's USN (roll_no) when available —
+        // non-student members (faculty/staff/external) without a roll_no fall back to a generated code.
+        const barcode = row["roll_no"] || generateMemberBarcode(membershipNo);
 
         await db.insert(members).values({
           membershipNo,

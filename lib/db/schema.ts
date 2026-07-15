@@ -488,6 +488,22 @@ export const notifications = pgTable("notifications", {
   index("notif_type_idx").on(t.type),
 ]);
 
+// ─── Library Gate Visits (entry/exit tracking via USN barcode) ───────────────
+export const libraryVisits = pgTable("library_visits", {
+  id: serial("id").primaryKey(),
+  memberId: integer("member_id").notNull().references(() => members.id),
+  entryTime: timestamp("entry_time").notNull().defaultNow(),
+  exitTime: timestamp("exit_time"),
+  durationMinutes: integer("duration_minutes"),
+  autoClosed: boolean("auto_closed").notNull().default(false),
+  scannedBy: integer("scanned_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("visits_member_idx").on(t.memberId),
+  index("visits_entry_idx").on(t.entryTime),
+  index("visits_open_idx").on(t.exitTime),
+]);
+
 // ─── Audit Log ────────────────────────────────────────────────────────────────
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(),
@@ -526,6 +542,12 @@ export const membersRelations = relations(members, ({ many }) => ({
   reservations: many(reservations),
   fines: many(fineRecords),
   notifications: many(notifications),
+  visits: many(libraryVisits),
+}));
+
+export const libraryVisitsRelations = relations(libraryVisits, ({ one }) => ({
+  member: one(members, { fields: [libraryVisits.memberId], references: [members.id] }),
+  staff: one(users, { fields: [libraryVisits.scannedBy], references: [users.id] }),
 }));
 
 export const circTransactionsRelations = relations(circTransactions, ({ one }) => ({

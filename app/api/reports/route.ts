@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import {
   circTransactions, catalogueItems, members, fineRecords,
-  purchaseOrders, copies, serialIssues,
+  purchaseOrders, copies, serialIssues, libraryVisits,
 } from "@/lib/db/schema";
 import { eq, sql, gte, lte, and as drizzleAnd, isNull, desc } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { getCached } from "@/lib/redis";
+import { closeStaleVisits } from "@/lib/gate";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -30,6 +31,7 @@ export async function GET(req: NextRequest) {
       case "top-books": return getTopBooks(from, to);
       case "top-members": return getTopMembers(from, to);
       case "missing-serials": return getMissingSerials();
+      case "gate": return getGateStats(from, to);
       default: return {};
     }
   });
@@ -38,6 +40,8 @@ export async function GET(req: NextRequest) {
 }
 
 async function getDashboardStats() {
+  await closeStaleVisits();
+
   const [
     [{ totalBooks }],
     [{ totalMembers }],
@@ -45,6 +49,7 @@ async function getDashboardStats() {
     [{ overdueLoans }],
     [{ totalFinesPending }],
     [{ newArrivals }],
+    [{ currentlyInside }],
   ] = await Promise.all([
     db.select({ totalBooks: sql<number>`count(*)` }).from(catalogueItems).where(eq(catalogueItems.isActive, true)),
     db.select({ totalMembers: sql<number>`count(*)` }).from(members).where(eq(members.isActive, true)),
@@ -52,9 +57,10 @@ async function getDashboardStats() {
     db.select({ overdueLoans: sql<number>`count(*)` }).from(circTransactions).where(drizzleAnd(isNull(circTransactions.returnDate), sql`due_date < current_date`, sql`transaction_type IN ('issue','overnight','renew')`)),
     db.select({ totalFinesPending: sql<number>`coalesce(sum(amount),0)` }).from(fineRecords).where(eq(fineRecords.status, "pending")),
     db.select({ newArrivals: sql<number>`count(*)` }).from(catalogueItems).where(sql`created_at >= now() - interval '30 days'`),
+    db.select({ currentlyInside: sql<number>`count(*)` }).from(libraryVisits).where(isNull(libraryVisits.exitTime)),
   ]);
 
-  return { totalBooks, totalMembers, activeLoans, overdueLoans, totalFinesPending, newArrivals };
+  return { totalBooks, totalMembers, activeLoans, overdueLoans, totalFinesPending, newArrivals, currentlyInside };
 }
 
 async function getCirculationStats(from: string | null, to: string | null) {
@@ -161,5 +167,43 @@ async function getMissingSerials() {
     .from(serialIssues)
     .groupBy(serialIssues.status);
   return rows;
+}
+
+async function getGateStats(from: string | null, to: string | null) {
+  await closeStaleVisits();
+
+  const conditions: any[] = [];
+  if (from) conditions.push(gte(libraryVisits.entryTime, new Date(from)));
+  if (to) conditions.push(lte(libraryVisits.entryTime, new Date(to)));
+  const where = conditions.length ? drizzleAnd(...conditions) : undefined;
+
+  const [daily, byHour, byDept, [{ avgDuration }]] = await Promise.all([
+    db.select({
+      date: sql<string>`date(entry_time)`,
+      count: sql<number>`count(*)`,
+    }).from(libraryVisits).where(where).groupBy(sql`date(entry_time)`).orderBy(sql`date(entry_time)`),
+
+    db.select({
+      hour: sql<number>`extract(hour from entry_time)`,
+      count: sql<number>`count(*)`,
+    }).from(libraryVisits).where(where).groupBy(sql`extract(hour from entry_time)`).orderBy(sql`extract(hour from entry_time)`),
+
+    db.select({
+      department: members.department,
+      count: sql<number>`count(*)`,
+    })
+      .from(libraryVisits)
+      .innerJoin(members, eq(libraryVisits.memberId, members.id))
+      .where(where)
+      .groupBy(members.department)
+      .orderBy(desc(sql`count(*)`))
+      .limit(10),
+
+    db.select({ avgDuration: sql<number>`coalesce(avg(duration_minutes),0)` })
+      .from(libraryVisits)
+      .where(drizzleAnd(...(where ? [where] : []), sql`duration_minutes IS NOT NULL`)),
+  ]);
+
+  return { daily, byHour, byDept, avgDuration: Number(avgDuration) };
 }
 

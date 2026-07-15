@@ -65,7 +65,9 @@ export async function POST(req: NextRequest) {
   const seq = Number(maxSeq) + 1;
   const year = new Date().getFullYear();
   const membershipNo = `AMC/${year}/${String(seq).padStart(5, "0")}`;
-  const barcode = generateMemberBarcode(membershipNo);
+  // The physical ID card barcode is the student's USN (roll_no) when available —
+  // non-student members (faculty/staff/external) without a roll_no fall back to a generated code.
+  const barcode = parsed.data.rollNo || generateMemberBarcode(membershipNo);
 
   const [member] = await db.insert(members).values({
     ...parsed.data,

@@ -58,6 +58,11 @@ const DEPARTMENTS: Record<string, string> = {
   AIDS: "B.E. Artificial Intelligence and Data Science",
 };
 const DEPT_CODES = Object.keys(DEPARTMENTS);
+// Distinct 2-letter roll-no codes — AIML/AIDS would otherwise collide since both
+// start with "AI" under a naive .slice(0,2).
+const ROLL_NO_DEPT_CODE: Record<string, string> = {
+  CSE: "CS", ISE: "IS", ECE: "EC", EEE: "EE", ME: "ME", CV: "CV", AIML: "AM", AIDS: "AD",
+};
 
 const SUBJECTS = [
   "Data Structures", "Algorithms", "Operating Systems", "Computer Networks",
@@ -137,7 +142,7 @@ function buildMembersCsv(count: number): string {
     for (let i = 0; i < perDept && seq < count; i++, seq++) {
       const name = personName();
       const yy = String(randInt(21, 25));
-      const rollNo = `1AM${yy}${deptCode.slice(0, 2)}${String(i + 1).padStart(3, "0")}`;
+      const rollNo = `1AM${yy}${ROLL_NO_DEPT_CODE[deptCode]}${String(i + 1).padStart(3, "0")}`;
       const type = Math.random() < 0.9 ? "student" : pick(["faculty", "staff", "external"]);
       const email = `${rollNo.toLowerCase()}@amc.edu.in`;
       const phone = `${pick(["6", "7", "8", "9"])}${Array.from({ length: 9 }, () => randInt(0, 9)).join("")}`;

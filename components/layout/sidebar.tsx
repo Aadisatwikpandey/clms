@@ -6,13 +6,14 @@ import { cn } from "@/lib/utils";
 import {
   BookOpen, Users, ArrowLeftRight, ShoppingCart, Layers,
   Monitor, HardDrive, BarChart2, DollarSign, Package,
-  Bell, Settings, Upload, Search, BookMarked,
+  Bell, Settings, Upload, Search, BookMarked, DoorOpen,
 } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart2, roles: ["admin","librarian","staff","finance","readonly","member"] },
   { href: "/cataloguing", label: "Catalogue", icon: BookOpen, roles: ["admin","librarian","staff"] },
   { href: "/circulation", label: "Circulation", icon: ArrowLeftRight, roles: ["admin","librarian","staff"] },
+  { href: "/gate", label: "Library Gate", icon: DoorOpen, roles: ["admin","librarian","staff","finance","readonly"] },
   { href: "/members", label: "Members", icon: Users, roles: ["admin","librarian","staff"] },
   { href: "/opac", label: "OPAC Search", icon: Search, roles: ["admin","librarian","staff","member","readonly"] },
   { href: "/acquisitions", label: "Acquisitions", icon: ShoppingCart, roles: ["admin","librarian","finance"] },

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { Header } from "@/components/layout/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, Users, ArrowLeftRight, AlertCircle, DollarSign, Package } from "lucide-react";
+import { BookOpen, Users, ArrowLeftRight, AlertCircle, DollarSign, Package, DoorOpen } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend,
@@ -35,6 +35,7 @@ export default function DashboardPage() {
     { title: "Overdue Items", value: stats?.overdueLoans ?? 0, icon: AlertCircle, color: "text-red-600" },
     { title: "Fines Pending (₹)", value: Number(stats?.totalFinesPending ?? 0).toFixed(2), icon: DollarSign, color: "text-amber-600" },
     { title: "New Arrivals (30d)", value: stats?.newArrivals ?? 0, icon: Package, color: "text-cyan-600" },
+    { title: "Currently Inside", value: stats?.currentlyInside ?? 0, icon: DoorOpen, color: "text-teal-600" },
   ];
 
   return (

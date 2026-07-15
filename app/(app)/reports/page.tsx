@@ -38,6 +38,7 @@ export default function ReportsPage() {
               <SelectItem value="top-books">Top Borrowed Books</SelectItem>
               <SelectItem value="top-members">Top Readers</SelectItem>
               <SelectItem value="missing-serials">Serial Status</SelectItem>
+              <SelectItem value="gate">Library Gate / Footfall</SelectItem>
             </SelectContent>
           </Select>
           <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" placeholder="From" />
@@ -130,6 +131,59 @@ export default function ReportsPage() {
                   </PieChart>
                 </CardContent>
               </Card>
+            )}
+            {reportType === "gate" && data && (
+              <>
+                <Card className="col-span-2 xl:col-span-1">
+                  <CardContent className="pt-6">
+                    <div className="space-y-3">
+                      <div className="flex justify-between"><span>Average Time in Library</span><span className="font-bold text-blue-600">{Math.round(data.avgDuration)} min</span></div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader><CardTitle className="text-sm">Daily Footfall</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <LineChart data={data.daily ?? []}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader><CardTitle className="text-sm">Visits by Hour of Day</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={data.byHour ?? []}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="hour" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip />
+                        <Bar dataKey="count" fill="#f59e0b" radius={[4,4,0,0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader><CardTitle className="text-sm">Footfall by Department</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={data.byDept ?? []} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" tick={{ fontSize: 10 }} />
+                        <YAxis dataKey="department" type="category" width={80} tick={{ fontSize: 9 }} />
+                        <Tooltip />
+                        <Bar dataKey="count" fill="#8b5cf6" radius={[0,4,4,0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </>
             )}
             {reportType === "acquisitions" && data && (
               <Card>
