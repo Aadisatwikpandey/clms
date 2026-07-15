@@ -16,7 +16,9 @@
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f app",
     "db:import-accession": "tsx scripts/import-accession.ts",
-    "db:import-members": "tsx scripts/import-members.ts"
+    "db:import-members": "tsx scripts/import-members.ts",
+    "test:generate-data": "tsx scripts/generate-test-data.ts",
+    "test:load-import": "tsx scripts/load-test-import.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
