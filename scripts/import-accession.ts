@@ -49,7 +49,7 @@ function parsePages(v: unknown): number | null {
   const n = parseInt(s(v)); return isNaN(n) ? null : n;
 }
 
-function toMaterialType(itemType: string): schema.materialTypeEnum {
+function toMaterialType(itemType: string): (typeof schema.materialTypeEnum.enumValues)[number] {
   const t = itemType.toLowerCase();
   if (t.includes("journal") || t.includes("periodical") || t.includes("magazine")) return "journal";
   if (t.includes("dvd") || t.includes("cd") || t.includes("media") || t.includes("av")) return "av_material";
@@ -60,7 +60,7 @@ function toMaterialType(itemType: string): schema.materialTypeEnum {
   return "book";
 }
 
-function toCopyStatus(accessionStatus: string): schema.copyStatusEnum {
+function toCopyStatus(accessionStatus: string): (typeof schema.copyStatusEnum.enumValues)[number] {
   const t = accessionStatus.toLowerCase();
   if (t.includes("withdraw")) return "withdrawn";
   if (t.includes("lost")) return "lost";

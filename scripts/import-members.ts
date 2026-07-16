@@ -15,7 +15,7 @@ const FILE = "/Users/aadi/Desktop/AMC-lib-system/members.csv";
 function s(v: unknown): string { return v == null ? "" : String(v).trim(); }
 function sOrNull(v: unknown): string | null { const r = s(v); return r || null; }
 
-function toMemberType(t: string): schema.memberTypeEnum {
+function toMemberType(t: string): (typeof schema.memberTypeEnum.enumValues)[number] {
   const v = t.toLowerCase();
   if (v === "faculty") return "faculty";
   if (v === "staff") return "staff";
